@@ -44,11 +44,11 @@ var MasterDB *sql.DB
 //     log.Println("✅ Conectado ao banco master:", dbName)
 // }
 func ConnectMaster() {
-    LoadEnv() // carrega variáveis do .env (opcional em Railway)
+    LoadEnv() // carrega variáveis do .env (opcional no Railway)
 
     user := GetEnv("MYSQLUSER")
     pass := GetEnv("MYSQLPASSWORD")
-    host := GetEnv("MYSQLHOST") + ":" + GetEnv("MYSQLPORT")
+    host := GetEnv("MYSQL_PUBLIC_URL") + ":" + GetEnv("MYSQLPORT")
     dbName := GetEnv("MYSQLDATABASE") // banco master criado no Railway
 
     dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", user, pass, host, dbName)
@@ -64,6 +64,7 @@ func ConnectMaster() {
 
     log.Println("✅ Conectado ao banco master:", dbName)
 }
+
 
 
 // Retorna o projeto baseado na API KEY
@@ -86,9 +87,12 @@ func GetDBConnection(project *Project) (*sql.DB, error) {
     }
 
     // Se não existe, cria nova conexão
-    user := GetEnv("MYSQL_USER")
-    pass := GetEnv("MYSQL_PASS")
-    host := GetEnv("MYSQL_HOST")
+    // user := GetEnv("MYSQL_USER")
+    // pass := GetEnv("MYSQL_PASS")
+    // host := GetEnv("MYSQL_HOST")
+    user := GetEnv("MYSQLUSER")
+    pass := GetEnv("MYSQLPASSWORD")
+    host := GetEnv("MYSQL_PUBLIC_URL") + ":" + GetEnv("MYSQLPORT")
     dbName := project.Database
 
     dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", user, pass, host, dbName)
