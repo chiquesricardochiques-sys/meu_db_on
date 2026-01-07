@@ -28,60 +28,69 @@ func validateApiKey(w http.ResponseWriter, r *http.Request) (*config.Project, er
 }
 
 // Função auxiliar para obter a conexão com o banco de dados do projeto
-func getDBConnection(w http.ResponseWriter, project *config.Project) (*config.DB, error) {
-	db, err := config.GetDBConnection(project)
-	if err != nil {
-		http.Error(w, "Erro ao conectar banco do projeto", http.StatusInternalServerError)
-		return nil, err
-	}
-	return db, nil
+func getDBConnection(w http.ResponseWriter, project *config.Project) (*sql.DB, error) {
+    db, err := config.GetDBConnection(project)
+    if err != nil {
+        http.Error(w, "Erro ao conectar banco do projeto", http.StatusInternalServerError)
+        return nil, err
+    }
+    return db, nil
 }
+
 
 // Função de inserção genérica
 func Insert(w http.ResponseWriter, r *http.Request) {
-	project, err := validateApiKey(w, r)
-	if err != nil {
-		return
-	}
+    project, err := validateApiKey(w, r)
+    if err != nil {
+        return
+    }
 
-	db, err := getDBConnection(w, project)
-	if err != nil {
-		return
-	}
+    db, err := getDBConnection(w, project)
+    if err != nil {
+        return
+    }
 
-	var req RequestData
-	err = json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Erro ao ler body", http.StatusBadRequest)
-		return
-	}
+    var req RequestData
+    err = json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
+        http.Error(w, "Erro ao ler body", http.StatusBadRequest)
+        return
+    }
 
-	columns := ""
-	values := ""
-	valArgs := []interface{}{}
-	i := 0
-	for k, v := range req.Data {
-		if i > 0 {
-			columns += ", "
-			values += ", "
-		}
-		columns += k
-		values += "?"
-		valArgs = append(valArgs, v)
-		i++
-	}
+    columns := ""
+    placeholders := ""
+    values := []interface{}{}
+    i := 0
+    for k, v := range req.Data {
+        if i > 0 {
+            columns += ", "
+            placeholders += ", "
+        }
+        columns += k
+        placeholders += "?"
+        values = append(values, v)
+        i++
+    }
 
-	sqlQuery := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", req.Table, columns, values)
-	_, err = db.Exec(sqlQuery, valArgs...)
-	if err != nil {
-		log.Println("Erro no Insert:", err)
-		http.Error(w, "Erro ao inserir dados", http.StatusInternalServerError)
-		return
-	}
+    sqlQuery := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", req.Table, columns, placeholders)
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("✅ Inserido com sucesso!"))
+    stmt, err := db.Prepare(sqlQuery) // Usando PreparedStatement
+    if err != nil {
+        http.Error(w, "Erro ao preparar consulta", http.StatusInternalServerError)
+        return
+    }
+    defer stmt.Close()
+
+    _, err = stmt.Exec(values...) // Exec com prepared statement
+    if err != nil {
+        http.Error(w, "Erro ao inserir dados", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte("✅ Inserido com sucesso!"))
 }
+
 
 // Função GET genérica - Retorna todos os registros da tabela
 func Get(w http.ResponseWriter, r *http.Request) {
@@ -220,55 +229,57 @@ func Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Função GET com Query String (para consultas mais específicas)
+// Função GET com Query String (para consultas mais específicas)
 func GetQueryString(w http.ResponseWriter, r *http.Request) {
-	apiKey := r.URL.Query().Get("api_key")
-	project, err := security.ValidateApiKey(apiKey)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
-	}
+    apiKey := r.URL.Query().Get("api_key")
+    project, err := security.ValidateApiKey(apiKey)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusUnauthorized)
+        return
+    }
 
-	db, err := config.GetDBConnection(project)
-	if err != nil {
-		http.Error(w, "Erro ao conectar banco do projeto", http.StatusInternalServerError)
-		return
-	}
+    db, err := config.GetDBConnection(project) // Alteração aqui
+    if err != nil {
+        http.Error(w, "Erro ao conectar banco do projeto", http.StatusInternalServerError)
+        return
+    }
 
-	table := r.URL.Query().Get("table")
-	if table == "" {
-		http.Error(w, "É necessário fornecer o parâmetro 'table'", http.StatusBadRequest)
-		return
-	}
+    table := r.URL.Query().Get("table")
+    if table == "" {
+        http.Error(w, "É necessário fornecer o parâmetro 'table'", http.StatusBadRequest)
+        return
+    }
 
-	rows, err := db.Query(fmt.Sprintf("SELECT * FROM %s", table))
-	if err != nil {
-		http.Error(w, "Erro ao consultar dados", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
+    rows, err := db.Query(fmt.Sprintf("SELECT * FROM %s", table))
+    if err != nil {
+        http.Error(w, "Erro ao consultar dados", http.StatusInternalServerError)
+        return
+    }
+    defer rows.Close()
 
-	cols, _ := rows.Columns()
-	results := []map[string]interface{}{}
+    cols, _ := rows.Columns()
+    results := []map[string]interface{}{}
 
-	for rows.Next() {
-		columns := make([]interface{}, len(cols))
-		columnPointers := make([]interface{}, len(cols))
-		for i := range columns {
-			columnPointers[i] = &columns[i]
-		}
+    for rows.Next() {
+        columns := make([]interface{}, len(cols))
+        columnPointers := make([]interface{}, len(cols))
+        for i := range columns {
+            columnPointers[i] = &columns[i]
+        }
 
-		if err := rows.Scan(columnPointers...); err != nil {
-			continue
-		}
+        if err := rows.Scan(columnPointers...); err != nil {
+            continue
+        }
 
-		m := make(map[string]interface{})
-		for i, colName := range cols {
-			val := columnPointers[i].(*interface{})
-			m[colName] = *val
-		}
-		results = append(results, m)
-	}
+        m := make(map[string]interface{})
+        for i, colName := range cols {
+            val := columnPointers[i].(*interface{})
+            m[colName] = *val
+        }
+        results = append(results, m)
+    }
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(results)
 }
+
