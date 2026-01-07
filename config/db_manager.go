@@ -44,29 +44,47 @@ var MasterDB *sql.DB
 //     log.Println("✅ Conectado ao banco master:", dbName)
 // }
 func ConnectMaster() {
-    LoadEnv() // carrega variáveis do sistema
+    // Pega variáveis de ambiente
+    user := os.Getenv("MYSQLUSER")
+    pass := os.Getenv("MYSQLPASSWORD")
+    host := os.Getenv("MYSQLHOST")
+    port := os.Getenv("MYSQLPORT")
+    dbName := os.Getenv("MYSQLDATABASE")
 
-    user := GetEnv("MYSQLUSER")
-    pass := GetEnv("MYSQLPASSWORD")
-
-    // pegar do PUBLIC URL do Railway
-    host := "maglev.proxy.rlwy.net:32502" // da sua variável MYSQL_PUBLIC_URL
-    dbName := GetEnv("MYSQLDATABASE")     // railway
-
-    dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", user, pass, host, dbName)
-    var err error
-    MasterDB, err = sql.Open("mysql", dsn)
+    // Carrega certificado CA (baixar do Aiven e colocar na raiz do projeto)
+    rootCertPool := x509.NewCertPool()
+    pem, err := ioutil.ReadFile("ca.pem") // O arquivo do Aiven
     if err != nil {
-        log.Fatalf("Erro ao conectar no banco master: %v", err)
+        log.Fatalf("Erro ao ler CA: %v", err)
+    }
+    if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+        log.Fatalf("Erro ao adicionar CA")
     }
 
-    if err := MasterDB.Ping(); err != nil {
-        log.Fatalf("Erro ao pingar banco master: %v", err)
+    // Registra TLS config
+    tlsConfig := &tls.Config{
+        RootCAs: rootCertPool,
+    }
+    err = mysql.RegisterTLSConfig("aiven", tlsConfig)
+    if err != nil {
+        log.Fatalf("Erro ao registrar TLS config: %v", err)
     }
 
-    log.Println("✅ Conectado ao banco master:", dbName)
+    // DSN com TLS
+    dsn := user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + dbName + "?parseTime=true&tls=aiven"
+
+    db, err := sql.Open("mysql", dsn)
+    if err != nil {
+        log.Fatalf("Erro ao conectar no MySQL Aiven: %v", err)
+    }
+
+    if err := db.Ping(); err != nil {
+        log.Fatalf("Erro ao pingar banco: %v", err)
+    }
+
+    MasterDB = db
+    log.Println("✅ Conectado ao banco master Aiven:", dbName)
 }
-
 
 
 
@@ -95,10 +113,12 @@ func GetDBConnection(project *Project) (*sql.DB, error) {
     // host := GetEnv("MYSQL_HOST")
     user := GetEnv("MYSQLUSER")
     pass := GetEnv("MYSQLPASSWORD")
-    host := GetEnv("MYSQL_PUBLIC_URL") + ":" + GetEnv("MYSQLPORT")
+    host := os.Getenv("MYSQLHOST") + ":" + os.Getenv("MYSQLPORT")
+
     dbName := project.Database
 
-    dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true", user, pass, host, dbName)
+    dsn := user + ":" + pass + "@tcp(" + host + ")/" + dbName + "?parseTime=true&tls=aiven"
+)
     db, err := sql.Open("mysql", dsn)
     if err != nil {
         return nil, err
@@ -112,4 +132,5 @@ func GetDBConnection(project *Project) (*sql.DB, error) {
     log.Println("✅ Conectado ao banco do projeto:", dbName)
     return db, nil
 }
+
 
