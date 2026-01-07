@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"meu-provedor/config"
 	"net/http"
 	"regexp"
@@ -192,3 +191,4 @@ func DeleteTable(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("✅ Tabela deletada!"))
 }
+
