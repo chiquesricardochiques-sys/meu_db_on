@@ -8,7 +8,8 @@ import (
     "log"
     "os"
 
-    _ "github.com/go-sql-driver/mysql"
+   "github.com/go-sql-driver/mysql"
+
 )
 
 // Estrutura que representa um projeto cadastrado
@@ -106,3 +107,4 @@ func GetDBConnection(project *Project) (*sql.DB, error) {
     log.Println("✅ Conectado ao banco do projeto:", dbName)
     return db, nil
 }
+
