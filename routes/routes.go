@@ -29,7 +29,8 @@ func StartServer(port string) {
 	r := SetupRouter()
 	log.Println("🚀 Servidor iniciado (modo interno) na porta", port)
 
-	if err := http.ListenAndServe("127.0.0.1:"+port, r); err != nil {
+	if err := http.ListenAndServe("0.0.0.0:"+port, r); err != nil {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
 }
+
