@@ -6,6 +6,7 @@ import (
 	"log"
 	"meu-provedor/config"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/gorilla/mux"
@@ -13,9 +14,8 @@ import (
 
 // Estrutura para criar/atualizar projeto
 type ProjectRequest struct {
-	Name     string `json:"name"`
-	Database string `json:"database"`
-	ApiKey   string `json:"api_key"`
+	Name   string `json:"name"`
+	ApiKey string `json:"api_key"`
 }
 
 // Estrutura para criar tabela
@@ -34,18 +34,10 @@ func CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cria projeto no banco master
-	sqlQuery := "INSERT INTO projects (name, database_name, api_key) VALUES (?, ?, ?)"
-	_, err := config.MasterDB.Exec(sqlQuery, req.Name, req.Database, req.ApiKey)
+	sqlQuery := "INSERT INTO projects (name, api_key) VALUES (?, ?)"
+	_, err := config.MasterDB.Exec(sqlQuery, req.Name, req.ApiKey)
 	if err != nil {
 		http.Error(w, "Erro ao criar projeto: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Cria banco físico do projeto
-	_, err = config.MasterDB.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", req.Database))
-	if err != nil {
-		http.Error(w, "Erro ao criar banco do projeto: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -55,7 +47,7 @@ func CreateProject(w http.ResponseWriter, r *http.Request) {
 
 // Lista todos os projetos
 func ListProjects(w http.ResponseWriter, r *http.Request) {
-	rows, err := config.MasterDB.Query("SELECT id, name, database_name, api_key FROM projects")
+	rows, err := config.MasterDB.Query("SELECT id, name, api_key FROM projects")
 	if err != nil {
 		http.Error(w, "Erro ao buscar projetos", http.StatusInternalServerError)
 		return
@@ -65,7 +57,7 @@ func ListProjects(w http.ResponseWriter, r *http.Request) {
 	projects := []config.Project{}
 	for rows.Next() {
 		var p config.Project
-		if err := rows.Scan(&p.ID, &p.Name, &p.Database, &p.ApiKey); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.ApiKey); err != nil {
 			continue
 		}
 		projects = append(projects, p)
@@ -86,8 +78,8 @@ func UpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sqlQuery := "UPDATE projects SET name = ?, database_name = ?, api_key = ? WHERE id = ?"
-	_, err := config.MasterDB.Exec(sqlQuery, req.Name, req.Database, req.ApiKey, id)
+	sqlQuery := "UPDATE projects SET name = ?, api_key = ? WHERE id = ?"
+	_, err := config.MasterDB.Exec(sqlQuery, req.Name, req.ApiKey, id)
 	if err != nil {
 		http.Error(w, "Erro ao atualizar projeto: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -102,21 +94,11 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 	idStr := mux.Vars(r)["id"]
 	id, _ := strconv.Atoi(idStr)
 
-	var dbName string
-	row := config.MasterDB.QueryRow("SELECT database_name FROM projects WHERE id = ?", id)
-	row.Scan(&dbName)
-
-	// Deleta projeto do master
+	// Remove projeto do banco
 	_, err := config.MasterDB.Exec("DELETE FROM projects WHERE id = ?", id)
 	if err != nil {
 		http.Error(w, "Erro ao deletar projeto: "+err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	// Deleta banco físico
-	_, err = config.MasterDB.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", dbName))
-	if err != nil {
-		log.Println("⚠️ Erro ao deletar banco físico:", err)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -125,6 +107,12 @@ func DeleteProject(w http.ResponseWriter, r *http.Request) {
 
 // ===================== TABELAS =====================
 
+// Função para validar nomes de tabela/coluna (apenas letras, números e _)
+func isValidName(name string) bool {
+	re := regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+	return re.MatchString(name)
+}
+
 // Cria nova tabela no projeto
 func CreateTable(w http.ResponseWriter, r *http.Request) {
 	projectIDStr := mux.Vars(r)["id"]
@@ -132,8 +120,11 @@ func CreateTable(w http.ResponseWriter, r *http.Request) {
 
 	// Busca projeto
 	var project config.Project
-	row := config.MasterDB.QueryRow("SELECT id, name, database_name, api_key FROM projects WHERE id = ?", projectID)
-	row.Scan(&project.ID, &project.Name, &project.Database, &project.ApiKey)
+	row := config.MasterDB.QueryRow("SELECT id, name, api_key FROM projects WHERE id = ?", projectID)
+	if err := row.Scan(&project.ID, &project.Name, &project.ApiKey); err != nil {
+		http.Error(w, "Projeto não encontrado", http.StatusNotFound)
+		return
+	}
 
 	var req TableRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -141,25 +132,29 @@ func CreateTable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Monta query de criação de tabela
+	if !isValidName(req.TableName) {
+		http.Error(w, "Nome da tabela inválido", http.StatusBadRequest)
+		return
+	}
+
 	columns := ""
 	i := 0
 	for col, tipo := range req.Columns {
+		if !isValidName(col) {
+			http.Error(w, "Nome de coluna inválido: "+col, http.StatusBadRequest)
+			return
+		}
 		if i > 0 {
 			columns += ", "
 		}
 		columns += fmt.Sprintf("%s %s", col, tipo)
 		i++
 	}
-	sqlQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", req.TableName, columns)
 
-	db, err := config.GetDBConnection(&project)
-	if err != nil {
-		http.Error(w, "Erro ao conectar banco do projeto", http.StatusInternalServerError)
-		return
-	}
+	tableName := fmt.Sprintf("projeto_%d_%s", project.ID, req.TableName)
+	sqlQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", tableName, columns)
 
-	_, err = db.Exec(sqlQuery)
+	_, err := config.MasterDB.Exec(sqlQuery)
 	if err != nil {
 		http.Error(w, "Erro ao criar tabela: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -169,23 +164,26 @@ func CreateTable(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("✅ Tabela criada!"))
 }
 
-// Deleta tabela
+// Deleta tabela do projeto
 func DeleteTable(w http.ResponseWriter, r *http.Request) {
 	projectIDStr := mux.Vars(r)["id"]
 	table := mux.Vars(r)["table"]
 	projectID, _ := strconv.Atoi(projectIDStr)
 
 	var project config.Project
-	row := config.MasterDB.QueryRow("SELECT id, name, database_name, api_key FROM projects WHERE id = ?", projectID)
-	row.Scan(&project.ID, &project.Name, &project.Database, &project.ApiKey)
-
-	db, err := config.GetDBConnection(&project)
-	if err != nil {
-		http.Error(w, "Erro ao conectar banco do projeto", http.StatusInternalServerError)
+	row := config.MasterDB.QueryRow("SELECT id, name, api_key FROM projects WHERE id = ?", projectID)
+	if err := row.Scan(&project.ID, &project.Name, &project.ApiKey); err != nil {
+		http.Error(w, "Projeto não encontrado", http.StatusNotFound)
 		return
 	}
 
-	_, err = db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", table))
+	if !isValidName(table) {
+		http.Error(w, "Nome da tabela inválido", http.StatusBadRequest)
+		return
+	}
+
+	tableName := fmt.Sprintf("projeto_%d_%s", project.ID, table)
+	_, err := config.MasterDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName))
 	if err != nil {
 		http.Error(w, "Erro ao deletar tabela: "+err.Error(), http.StatusInternalServerError)
 		return
