@@ -7,7 +7,7 @@ import (
     "io/ioutil"
     "log"
     "os"
-
+    "fmt"
     "github.com/go-sql-driver/mysql"
 )
 
@@ -87,4 +87,5 @@ func GetDBConnection(project *Project) (*sql.DB, error) {
     }
     return MasterDB, nil
 }
+
 
