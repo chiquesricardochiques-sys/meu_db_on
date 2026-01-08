@@ -22,6 +22,26 @@ func SetupRouter() *mux.Router {
 	protected.HandleFunc("/delete", handlers.Delete).Methods("POST")
 	protected.HandleFunc("/getqs", handlers.GetQueryString).Methods("GET")
 
+
+
+	
+	// ===================== ROTAS DE PROJETOS =====================
+	protected.HandleFunc("/projects", handlers.ListProjects).Methods("GET")
+	protected.HandleFunc("/projects", handlers.CreateProject).Methods("POST")
+	protected.HandleFunc("/projects/{id}", handlers.UpdateProject).Methods("PUT")
+	protected.HandleFunc("/projects/{id}", handlers.DeleteProject).Methods("DELETE")
+
+	// ===================== ROTAS DE INSTÂNCIAS =====================
+	protected.HandleFunc("/instances", handlers.ListInstances).Methods("GET")
+	protected.HandleFunc("/instances", handlers.CreateInstance).Methods("POST")
+	protected.HandleFunc("/instances/{id}", handlers.UpdateInstance).Methods("PUT")
+	protected.HandleFunc("/instances/{id}", handlers.DeleteInstance).Methods("DELETE")
+
+	// ===================== ROTAS DE TABELAS (opcional) =====================
+	protected.HandleFunc("/projects/{id}/tables", handlers.CreateTable).Methods("POST")
+	protected.HandleFunc("/projects/{id}/tables/{table}", handlers.DeleteTable).Methods("DELETE")
+
+	
 	return r
 }
 
@@ -33,4 +53,5 @@ func StartServer(port string) {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
 }
+
 
