@@ -37,9 +37,6 @@ func SetupRouter() *mux.Router {
 	protected.HandleFunc("/instances/{id}", handlers.UpdateInstance).Methods("PUT")
 	protected.HandleFunc("/instances/{id}", handlers.DeleteInstance).Methods("DELETE")
 
-	// ===================== ROTAS DE TABELAS (opcional) =====================
-	protected.HandleFunc("/projects/{id}/tables", handlers.CreateTable).Methods("POST")
-	protected.HandleFunc("/projects/{id}/tables/{table}", handlers.DeleteTable).Methods("DELETE")
 
 	
 	return r
@@ -53,5 +50,6 @@ func StartServer(port string) {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
 }
+
 
 
