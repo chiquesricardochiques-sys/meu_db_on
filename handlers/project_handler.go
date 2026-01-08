@@ -1,194 +1,290 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
-	"fmt"
-	"meu-provedor/config"
 	"net/http"
-	"regexp"
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"meu-provedor/config"
 )
 
-// Estrutura para criar/atualizar projeto
+/*
+========================
+STRUCTS
+========================
+*/
+
+// Projeto
 type ProjectRequest struct {
-	Name   string `json:"name"`
-	ApiKey string `json:"api_key"`
+	Name    string `json:"name"`
+	Code    string `json:"code"`
+	ApiKey  string `json:"api_key"`
+	Type    string `json:"type"`
+	Version string `json:"version"`
+	Status  string `json:"status"`
 }
 
-// Estrutura para criar tabela
-type TableRequest struct {
-	TableName string            `json:"table_name"`
-	Columns   map[string]string `json:"columns"` // nome da coluna -> tipo
+// Instância
+type InstanceRequest struct {
+	ProjectID   int64                  `json:"project_id"`
+	Name        string                 `json:"name"`
+	Code        string                 `json:"code"`
+	Description string                 `json:"description"`
+	Status      string                 `json:"status"`
+	Settings    map[string]interface{} `json:"settings"`
 }
 
-// ===================== PROJETOS =====================
+/*
+========================
+PROJETOS - CRUD
+========================
+*/
 
-// Cria novo projeto
+// CREATE PROJECT
 func CreateProject(w http.ResponseWriter, r *http.Request) {
 	var req ProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Erro ao ler body", http.StatusBadRequest)
-		return
-	}
+	json.NewDecoder(r.Body).Decode(&req)
 
-	sqlQuery := "INSERT INTO projects (name, api_key) VALUES (?, ?)"
-	_, err := config.MasterDB.Exec(sqlQuery, req.Name, req.ApiKey)
+	query := `
+		INSERT INTO projects (name, code, api_key, type, version, status)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
+	_, err := config.MasterDB.Exec(
+		query,
+		req.Name,
+		req.Code,
+		req.ApiKey,
+		req.Type,
+		req.Version,
+		req.Status,
+	)
+
 	if err != nil {
-		http.Error(w, "Erro ao criar projeto: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("✅ Projeto criado com sucesso!"))
+	w.Write([]byte("PROJECT CREATED"))
 }
 
-// Lista todos os projetos
+// LIST PROJECTS
 func ListProjects(w http.ResponseWriter, r *http.Request) {
-	rows, err := config.MasterDB.Query("SELECT id, name, api_key FROM projects")
+	rows, err := config.MasterDB.Query(`
+		SELECT id, name, code, type, version, status
+		FROM projects
+	`)
 	if err != nil {
-		http.Error(w, "Erro ao buscar projetos", http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 	defer rows.Close()
 
-	projects := []config.Project{}
+	var result []map[string]interface{}
+
 	for rows.Next() {
-		var p config.Project
-		if err := rows.Scan(&p.ID, &p.Name, &p.ApiKey); err != nil {
-			continue
-		}
-		projects = append(projects, p)
+		var (
+			id      int64
+			name    string
+			code    string
+			ptype   string
+			version string
+			status  string
+		)
+
+		rows.Scan(&id, &name, &code, &ptype, &version, &status)
+
+		result = append(result, map[string]interface{}{
+			"id":      id,
+			"name":    name,
+			"code":    code,
+			"type":    ptype,
+			"version": version,
+			"status":  status,
+		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(projects)
+	json.NewEncoder(w).Encode(result)
 }
 
-// Atualiza projeto
+// UPDATE PROJECT
 func UpdateProject(w http.ResponseWriter, r *http.Request) {
-	idStr := mux.Vars(r)["id"]
-	id, _ := strconv.Atoi(idStr)
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 
 	var req ProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Erro ao ler body", http.StatusBadRequest)
-		return
-	}
+	json.NewDecoder(r.Body).Decode(&req)
 
-	sqlQuery := "UPDATE projects SET name = ?, api_key = ? WHERE id = ?"
-	_, err := config.MasterDB.Exec(sqlQuery, req.Name, req.ApiKey, id)
+	query := `
+		UPDATE projects
+		SET name = ?, code = ?, type = ?, version = ?, status = ?
+		WHERE id = ?
+	`
+
+	_, err := config.MasterDB.Exec(
+		query,
+		req.Name,
+		req.Code,
+		req.Type,
+		req.Version,
+		req.Status,
+		id,
+	)
+
 	if err != nil {
-		http.Error(w, "Erro ao atualizar projeto: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("✅ Projeto atualizado!"))
+	w.Write([]byte("PROJECT UPDATED"))
 }
 
-// Deleta projeto
+// DELETE PROJECT
 func DeleteProject(w http.ResponseWriter, r *http.Request) {
-	idStr := mux.Vars(r)["id"]
-	id, _ := strconv.Atoi(idStr)
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 
-	// Remove projeto do banco
-	_, err := config.MasterDB.Exec("DELETE FROM projects WHERE id = ?", id)
+	_, err := config.MasterDB.Exec(
+		"DELETE FROM projects WHERE id = ?",
+		id,
+	)
+
 	if err != nil {
-		http.Error(w, "Erro ao deletar projeto: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("✅ Projeto deletado!"))
+	w.Write([]byte("PROJECT DELETED"))
 }
 
-// ===================== TABELAS =====================
+/*
+========================
+INSTÂNCIAS - CRUD
+========================
+*/
 
-// Função para validar nomes de tabela/coluna (apenas letras, números e _)
-func isValidName(name string) bool {
-	re := regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
-	return re.MatchString(name)
-}
+// CREATE INSTANCE
+func CreateInstance(w http.ResponseWriter, r *http.Request) {
+	var req InstanceRequest
+	json.NewDecoder(r.Body).Decode(&req)
 
-// Cria nova tabela no projeto
-func CreateTable(w http.ResponseWriter, r *http.Request) {
-	projectIDStr := mux.Vars(r)["id"]
-	projectID, _ := strconv.Atoi(projectIDStr)
+	settingsJSON, _ := json.Marshal(req.Settings)
 
-	// Busca projeto
-	var project config.Project
-	row := config.MasterDB.QueryRow("SELECT id, name, api_key FROM projects WHERE id = ?", projectID)
-	if err := row.Scan(&project.ID, &project.Name, &project.ApiKey); err != nil {
-		http.Error(w, "Projeto não encontrado", http.StatusNotFound)
-		return
-	}
+	query := `
+		INSERT INTO instancias_projetion
+		(project_id, name, code, description, status, settings)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
 
-	var req TableRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Erro ao ler body", http.StatusBadRequest)
-		return
-	}
+	_, err := config.MasterDB.Exec(
+		query,
+		req.ProjectID,
+		req.Name,
+		req.Code,
+		req.Description,
+		req.Status,
+		settingsJSON,
+	)
 
-	if !isValidName(req.TableName) {
-		http.Error(w, "Nome da tabela inválido", http.StatusBadRequest)
-		return
-	}
-
-	columns := ""
-	i := 0
-	for col, tipo := range req.Columns {
-		if !isValidName(col) {
-			http.Error(w, "Nome de coluna inválido: "+col, http.StatusBadRequest)
-			return
-		}
-		if i > 0 {
-			columns += ", "
-		}
-		columns += fmt.Sprintf("%s %s", col, tipo)
-		i++
-	}
-
-	tableName := fmt.Sprintf("projeto_%d_%s", project.ID, req.TableName)
-	sqlQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", tableName, columns)
-
-	_, err := config.MasterDB.Exec(sqlQuery)
 	if err != nil {
-		http.Error(w, "Erro ao criar tabela: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("✅ Tabela criada!"))
+	w.Write([]byte("INSTANCE CREATED"))
 }
 
-// Deleta tabela do projeto
-func DeleteTable(w http.ResponseWriter, r *http.Request) {
-	projectIDStr := mux.Vars(r)["id"]
-	table := mux.Vars(r)["table"]
-	projectID, _ := strconv.Atoi(projectIDStr)
+// LIST INSTANCES BY PROJECT
+func ListInstances(w http.ResponseWriter, r *http.Request) {
+	projectID, _ := strconv.Atoi(mux.Vars(r)["project_id"])
 
-	var project config.Project
-	row := config.MasterDB.QueryRow("SELECT id, name, api_key FROM projects WHERE id = ?", projectID)
-	if err := row.Scan(&project.ID, &project.Name, &project.ApiKey); err != nil {
-		http.Error(w, "Projeto não encontrado", http.StatusNotFound)
-		return
-	}
+	rows, err := config.MasterDB.Query(`
+		SELECT id, name, code, description, status, settings
+		FROM instancias_projetion
+		WHERE project_id = ?
+	`, projectID)
 
-	if !isValidName(table) {
-		http.Error(w, "Nome da tabela inválido", http.StatusBadRequest)
-		return
-	}
-
-	tableName := fmt.Sprintf("projeto_%d_%s", project.ID, table)
-	_, err := config.MasterDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName))
 	if err != nil {
-		http.Error(w, "Erro ao deletar tabela: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	defer rows.Close()
+
+	var result []map[string]interface{}
+
+	for rows.Next() {
+		var (
+			id          int64
+			name        string
+			code        string
+			description sql.NullString
+			status      string
+			settings    []byte
+		)
+
+		rows.Scan(&id, &name, &code, &description, &status, &settings)
+
+		var settingsMap map[string]interface{}
+		json.Unmarshal(settings, &settingsMap)
+
+		result = append(result, map[string]interface{}{
+			"id":          id,
+			"name":        name,
+			"code":        code,
+			"description": description.String,
+			"status":      status,
+			"settings":    settingsMap,
+		})
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+
+// UPDATE INSTANCE
+func UpdateInstance(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	var req InstanceRequest
+	json.NewDecoder(r.Body).Decode(&req)
+
+	settingsJSON, _ := json.Marshal(req.Settings)
+
+	query := `
+		UPDATE instancias_projetion
+		SET name = ?, code = ?, description = ?, status = ?, settings = ?
+		WHERE id = ?
+	`
+
+	_, err := config.MasterDB.Exec(
+		query,
+		req.Name,
+		req.Code,
+		req.Description,
+		req.Status,
+		settingsJSON,
+		id,
+	)
+
+	if err != nil {
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("✅ Tabela deletada!"))
+	w.Write([]byte("INSTANCE UPDATED"))
 }
 
+// DELETE INSTANCE
+func DeleteInstance(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(mux.Vars(r)["id"])
+
+	_, err := config.MasterDB.Exec(
+		"DELETE FROM instancias_projetion WHERE id = ?",
+		id,
+	)
+
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Write([]byte("INSTANCE DELETED"))
+}
