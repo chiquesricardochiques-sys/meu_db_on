@@ -162,10 +162,31 @@ INSTÂNCIAS - CRUD
 ========================
 */
 
+package handlers
+
+import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/gorilla/mux"
+	"meu-provedor/config"
+)
+
+/*
+========================
+INSTÂNCIAS - CRUD COMPLETO
+========================
+*/
+
 // CREATE INSTANCE
 func CreateInstance(w http.ResponseWriter, r *http.Request) {
 	var req InstanceRequest
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON body", 400)
+		return
+	}
 
 	settingsJSON, _ := json.Marshal(req.Settings)
 
@@ -193,15 +214,31 @@ func CreateInstance(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("INSTANCE CREATED"))
 }
 
-// LIST INSTANCES BY PROJECT
+// LIST INSTANCES (com filtro opcional por projeto)
 func ListInstances(w http.ResponseWriter, r *http.Request) {
-	projectID, _ := strconv.Atoi(mux.Vars(r)["project_id"])
+	queryParams := r.URL.Query()
+	projectIDStr := queryParams.Get("project_id")
 
-	rows, err := config.MasterDB.Query(`
-		SELECT id, name, code, description, status, settings
-		FROM instancias_projetion
-		WHERE project_id = ?
-	`, projectID)
+	var rows *sql.Rows
+	var err error
+
+	if projectIDStr != "" {
+		projectID, convErr := strconv.Atoi(projectIDStr)
+		if convErr != nil {
+			http.Error(w, "Invalid project_id", 400)
+			return
+		}
+		rows, err = config.MasterDB.Query(`
+			SELECT id, project_id, name, code, description, status, settings
+			FROM instancias_projetion
+			WHERE project_id = ?
+		`, projectID)
+	} else {
+		rows, err = config.MasterDB.Query(`
+			SELECT id, project_id, name, code, description, status, settings
+			FROM instancias_projetion
+		`)
+	}
 
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -214,6 +251,7 @@ func ListInstances(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var (
 			id          int64
+			projectID   int64
 			name        string
 			code        string
 			description sql.NullString
@@ -221,13 +259,14 @@ func ListInstances(w http.ResponseWriter, r *http.Request) {
 			settings    []byte
 		)
 
-		rows.Scan(&id, &name, &code, &description, &status, &settings)
+		rows.Scan(&id, &projectID, &name, &code, &description, &status, &settings)
 
 		var settingsMap map[string]interface{}
 		json.Unmarshal(settings, &settingsMap)
 
 		result = append(result, map[string]interface{}{
 			"id":          id,
+			"project_id":  projectID,
 			"name":        name,
 			"code":        code,
 			"description": description.String,
@@ -244,7 +283,10 @@ func UpdateInstance(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(mux.Vars(r)["id"])
 
 	var req InstanceRequest
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON body", 400)
+		return
+	}
 
 	settingsJSON, _ := json.Marshal(req.Settings)
 
@@ -288,3 +330,5 @@ func DeleteInstance(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("INSTANCE DELETED"))
 }
+
+
