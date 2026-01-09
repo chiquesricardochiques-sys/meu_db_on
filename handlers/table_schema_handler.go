@@ -263,11 +263,22 @@ func AddColumn(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("COLUMN ADDED"))
 }
 
+
+// GetQueryString retorna o valor de uma query string ou valor default
+func GetQueryString(r *http.Request, key string, defaultValue string) string {
+    v := r.URL.Query().Get(key)
+    if v == "" {
+        return defaultValue
+    }
+    return v
+}
+
 /*
 ====================================================
 DROP COLUMN
 ====================================================
 */
+
 
 func DropColumn(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
@@ -300,4 +311,5 @@ func DropColumn(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("COLUMN DROPPED"))
 }
+
 
