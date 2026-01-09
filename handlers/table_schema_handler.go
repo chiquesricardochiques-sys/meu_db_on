@@ -265,12 +265,57 @@ func AddColumn(w http.ResponseWriter, r *http.Request) {
 
 
 // GetQueryString retorna o valor de uma query string ou valor default
-func GetQueryString(r *http.Request, key string, defaultValue string) string {
-    v := r.URL.Query().Get(key)
-    if v == "" {
-        return defaultValue
+func GetQueryString(w http.ResponseWriter, r *http.Request) {
+    apiKey := r.URL.Query().Get("api_key")
+    project, err := security.ValidateApiKey(apiKey)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusUnauthorized)
+        return
     }
-    return v
+
+    db, err := config.GetDBConnection(project)
+    if err != nil {
+        http.Error(w, "Erro ao conectar banco do projeto", http.StatusInternalServerError)
+        return
+    }
+
+    table := r.URL.Query().Get("table")
+    if table == "" {
+        http.Error(w, "É necessário fornecer o parâmetro 'table'", http.StatusBadRequest)
+        return
+    }
+
+    rows, err := db.Query(fmt.Sprintf("SELECT * FROM %s", table))
+    if err != nil {
+        http.Error(w, "Erro ao consultar dados", http.StatusInternalServerError)
+        return
+    }
+    defer rows.Close()
+
+    cols, _ := rows.Columns()
+    results := []map[string]interface{}{}
+
+    for rows.Next() {
+        columns := make([]interface{}, len(cols))
+        columnPointers := make([]interface{}, len(cols))
+        for i := range columns {
+            columnPointers[i] = &columns[i]
+        }
+
+        if err := rows.Scan(columnPointers...); err != nil {
+            continue
+        }
+
+        m := make(map[string]interface{})
+        for i, colName := range cols {
+            val := columnPointers[i].(*interface{})
+            m[colName] = *val
+        }
+        results = append(results, m)
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(results)
 }
 
 /*
@@ -311,5 +356,6 @@ func DropColumn(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("COLUMN DROPPED"))
 }
+
 
 
