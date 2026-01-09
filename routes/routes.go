@@ -13,43 +13,57 @@ import (
 func SetupRouter() *mux.Router {
 	r := mux.NewRouter()
 
-	// ===================== ROTAS PROTEGIDAS =====================
+	// ====================================================
+	// ROTAS PROTEGIDAS (USO INTERNO / BACKEND)
+	// ====================================================
 	protected := r.PathPrefix("/").Subrouter()
 	protected.Use(security.InternalOnly)
 
-	// ===================== CRUD GENÉRICO (JÁ EXISTENTE) =====================
-	protected.HandleFunc("/insert", handlers.Insert).Methods("POST")
-	protected.HandleFunc("/get", handlers.Get).Methods("POST")
-	protected.HandleFunc("/update", handlers.Update).Methods("POST")
-	protected.HandleFunc("/delete", handlers.Delete).Methods("POST")
-	protected.HandleFunc("/getqs", handlers.GetQueryString).Methods("GET")
+	// ====================================================
+	// CRUD GENÉRICO POR INSTÂNCIA (DADOS DO USUÁRIO FINAL)
+	// ====================================================
+	// Todas essas rotas:
+	// - Exigem project_id
+	// - Exigem id_instancia
+	// - Nunca vazam dados entre clientes
+	protected.HandleFunc("/data/insert", handlers.Insert).Methods("POST")
+	protected.HandleFunc("/data/get", handlers.Get).Methods("POST")
+	protected.HandleFunc("/data/update", handlers.Update).Methods("POST")
+	protected.HandleFunc("/data/delete", handlers.Delete).Methods("POST")
 
-	// ===================== PROJETOS =====================
+	// Query string segura (uso interno)
+	protected.HandleFunc("/data/getqs", handlers.GetQueryString).Methods("GET")
+
+	// ====================================================
+	// PROJETOS (TEMPLATES DE SISTEMA)
+	// ====================================================
 	protected.HandleFunc("/projects", handlers.ListProjects).Methods("GET")
 	protected.HandleFunc("/projects", handlers.CreateProject).Methods("POST")
 	protected.HandleFunc("/projects/{id}", handlers.UpdateProject).Methods("PUT")
 	protected.HandleFunc("/projects/{id}", handlers.DeleteProject).Methods("DELETE")
 
-	// ===================== INSTÂNCIAS =====================
+	// ====================================================
+	// INSTÂNCIAS (CLIENTES)
+	// ====================================================
 	protected.HandleFunc("/instances", handlers.ListInstances).Methods("GET")
 	protected.HandleFunc("/instances", handlers.CreateInstance).Methods("POST")
 	protected.HandleFunc("/instances/{id}", handlers.UpdateInstance).Methods("PUT")
 	protected.HandleFunc("/instances/{id}", handlers.DeleteInstance).Methods("DELETE")
 
-	// ===================== GERENCIAMENTO DE TABELAS (CORE) =====================
-	// Criar tabela para um projeto
+	// ====================================================
+	// GERENCIAMENTO DE SCHEMA (ESTRUTURA DOS PROJETOS)
+	// ====================================================
+	// Criação de tabelas do projeto
 	protected.HandleFunc("/schema/table", handlers.CreateProjectTable).Methods("POST")
 
-	// Listar tabelas de um projeto
+	// Listagem de tabelas do projeto
 	protected.HandleFunc("/schema/tables", handlers.ListProjectTables).Methods("GET")
 
-	// Deletar tabela de um projeto
+	// Remoção de tabela
 	protected.HandleFunc("/schema/table", handlers.DeleteProjectTable).Methods("DELETE")
 
-	// Adicionar coluna em tabela
+	// Alteração de colunas
 	protected.HandleFunc("/schema/column", handlers.AddColumn).Methods("POST")
-
-	// Remover coluna de tabela
 	protected.HandleFunc("/schema/column", handlers.DropColumn).Methods("DELETE")
 
 	return r
@@ -57,6 +71,7 @@ func SetupRouter() *mux.Router {
 
 func StartServer(port string) {
 	r := SetupRouter()
+
 	log.Println("🚀 Servidor iniciado (modo interno) na porta", port)
 
 	if err := http.ListenAndServe("0.0.0.0:"+port, r); err != nil {
