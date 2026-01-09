@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -301,3 +300,4 @@ func DropColumn(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("COLUMN DROPPED"))
 }
+
