@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-
+	"meu-provedor/security"
 	"meu-provedor/config"
 )
 
@@ -356,6 +356,7 @@ func DropColumn(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("COLUMN DROPPED"))
 }
+
 
 
 
