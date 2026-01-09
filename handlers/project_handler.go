@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -200,3 +199,4 @@ func DeleteInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write([]byte("INSTANCE DELETED"))
 }
+
