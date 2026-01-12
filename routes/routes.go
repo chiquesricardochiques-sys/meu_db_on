@@ -20,7 +20,7 @@ func SetupRouter() *mux.Router {
 	protected.HandleFunc("/data/get", handlers.Get).Methods("POST")
 	protected.HandleFunc("/data/update", handlers.Update).Methods("POST")
 	protected.HandleFunc("/data/delete", handlers.Delete).Methods("POST")
-	protected.HandleFunc("/data/getqs", handlers.GetQueryString).Methods("GET")
+	//protected.HandleFunc("/data/getqs", handlers.GetQueryString).Methods("GET")
 
 	// ====== PROJETOS ======
 	protected.HandleFunc("/projects", handlers.ListProjects).Methods("GET")
@@ -66,3 +66,4 @@ func StartServer(port string) {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
 }
+
