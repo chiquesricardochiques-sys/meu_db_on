@@ -13,7 +13,7 @@ import (
 
 /*
 ====================================================
-VALIDAÇÕES BÁSICAS
+VALIDAÇÕES
 ====================================================
 */
 
@@ -25,7 +25,7 @@ func validateName(name string) bool {
 
 /*
 ====================================================
-STRUCTS BÁSICAS (COMPATIBILIDADE)
+STRUCTS
 ====================================================
 */
 
@@ -36,17 +36,18 @@ type ColumnRequest struct {
 	Unique   bool   `json:"unique"`
 }
 
+type IndexRequest struct {
+	Name    string   `json:"name"`
+	Columns []string `json:"columns"`
+	Type    string   `json:"type"` // UNIQUE ou INDEX
+}
+
 type CreateTableRequest struct {
 	ProjectID int64           `json:"project_id"`
 	TableName string          `json:"table_name"`
 	Columns   []ColumnRequest `json:"columns"`
+	Indexes   []IndexRequest  `json:"indexes,omitempty"`
 }
-
-/*
-====================================================
-STRUCTS V2 - DETALHAMENTO COMPLETO
-====================================================
-*/
 
 type ColumnDetail struct {
 	Name     string      `json:"name"`
@@ -67,19 +68,6 @@ type TableDetail struct {
 	Name    string         `json:"name"`
 	Columns []ColumnDetail `json:"columns"`
 	Indexes []IndexDetail  `json:"indexes"`
-}
-
-type IndexCreateReq struct {
-	Name    string   `json:"name"`
-	Columns []string `json:"columns"`
-	Type    string   `json:"type"` // UNIQUE ou INDEX
-}
-
-type CreateTableV2Request struct {
-	ProjectID int64            `json:"project_id"`
-	TableName string           `json:"table_name"`
-	Columns   []ColumnRequest  `json:"columns"`
-	Indexes   []IndexCreateReq `json:"indexes"`
 }
 
 /*
@@ -184,7 +172,7 @@ func getTableIndexes(tableName string) ([]IndexDetail, error) {
 
 /*
 ====================================================
-CREATE TABLE - VERSÃO ORIGINAL (COMPATIBILIDADE)
+CREATE TABLE (UNIFICADA - ACEITA COM OU SEM ÍNDICES)
 ====================================================
 */
 
@@ -209,71 +197,8 @@ func CreateProjectTable(w http.ResponseWriter, r *http.Request) {
 	fullTableName := fmt.Sprintf("%s_%s", projectCode, req.TableName)
 
 	var columns []string
-	columns = append(columns, "id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY")
-	columns = append(columns, `id_instancia BIGINT UNSIGNED NOT NULL,
-		FOREIGN KEY (id_instancia)
-		REFERENCES instancias_projetion(id)
-		ON DELETE CASCADE`)
 
-	for _, col := range req.Columns {
-		if !validateName(col.Name) {
-			http.Error(w, "Invalid column name", 400)
-			return
-		}
-
-		def := col.Name + " " + col.Type
-		if !col.Nullable {
-			def += " NOT NULL"
-		}
-		if col.Unique {
-			def += " UNIQUE"
-		}
-
-		columns = append(columns, def)
-	}
-
-	createSQL := fmt.Sprintf(
-		"CREATE TABLE %s (%s)",
-		fullTableName,
-		strings.Join(columns, ","),
-	)
-
-	if _, err := config.MasterDB.Exec(createSQL); err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("TABLE CREATED"))
-}
-
-/*
-====================================================
-CREATE TABLE V2 - COM ÍNDICES PERSONALIZADOS
-====================================================
-*/
-
-func CreateProjectTableV2(w http.ResponseWriter, r *http.Request) {
-	var req CreateTableV2Request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON: "+err.Error(), 400)
-		return
-	}
-
-	if !validateName(req.TableName) {
-		http.Error(w, "Invalid table name", 400)
-		return
-	}
-
-	projectCode, err := getProjectCode(req.ProjectID)
-	if err != nil {
-		http.Error(w, "Project not found", 404)
-		return
-	}
-
-	fullTableName := fmt.Sprintf("%s_%s", projectCode, req.TableName)
-
-	var columns []string
+	// Colunas padrão obrigatórias
 	columns = append(columns, "id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY")
 	columns = append(columns, `id_instancia BIGINT UNSIGNED NOT NULL,
 		FOREIGN KEY (id_instancia)
@@ -298,7 +223,7 @@ func CreateProjectTableV2(w http.ResponseWriter, r *http.Request) {
 		columns = append(columns, def)
 	}
 
-	// Índices adicionais
+	// Índices opcionais
 	for _, idx := range req.Indexes {
 		if len(idx.Columns) == 0 {
 			continue
@@ -342,12 +267,14 @@ func CreateProjectTableV2(w http.ResponseWriter, r *http.Request) {
 
 /*
 ====================================================
-LIST TABLES - VERSÃO SIMPLES
+LIST TABLES (COM DETALHES OPCIONAIS)
 ====================================================
 */
 
 func ListProjectTables(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
+	detailed := r.URL.Query().Get("detailed") // ?detailed=true para detalhes
+
 	if projectID == "" {
 		http.Error(w, "project_id required", 400)
 		return
@@ -377,54 +304,22 @@ func ListProjectTables(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var tables []string
-	for rows.Next() {
-		var name string
-		rows.Scan(&name)
-		tables = append(tables, name)
-	}
+	// Se não quer detalhes, retorna só os nomes
+	if detailed != "true" {
+		var tables []string
+		for rows.Next() {
+			var fullName string
+			rows.Scan(&fullName)
+			displayName := strings.TrimPrefix(fullName, projectCode+"_")
+			tables = append(tables, displayName)
+		}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tables)
-}
-
-/*
-====================================================
-LIST TABLES WITH DETAILS - V2
-====================================================
-*/
-
-func GetProjectTablesWithDetails(w http.ResponseWriter, r *http.Request) {
-	projectID := r.URL.Query().Get("project_id")
-	if projectID == "" {
-		http.Error(w, "project_id required", 400)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tables)
 		return
 	}
 
-	var projectCode string
-	err := config.MasterDB.QueryRow(
-		"SELECT code FROM projects WHERE id = ?",
-		projectID,
-	).Scan(&projectCode)
-
-	if err != nil {
-		http.Error(w, "Project not found", 404)
-		return
-	}
-
-	rows, err := config.MasterDB.Query(`
-		SELECT table_name
-		FROM information_schema.tables
-		WHERE table_schema = DATABASE()
-		AND table_name LIKE ?
-	`, projectCode+"_%")
-
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	defer rows.Close()
-
+	// Retorna com detalhes completos
 	var tables []TableDetail
 
 	for rows.Next() {
@@ -456,7 +351,7 @@ func GetProjectTablesWithDetails(w http.ResponseWriter, r *http.Request) {
 
 /*
 ====================================================
-GET TABLE DETAILS - UMA TABELA ESPECÍFICA
+GET TABLE DETAILS
 ====================================================
 */
 
@@ -642,6 +537,58 @@ func DropColumn(w http.ResponseWriter, r *http.Request) {
 
 /*
 ====================================================
+MODIFY COLUMN
+====================================================
+*/
+
+func ModifyColumn(w http.ResponseWriter, r *http.Request) {
+	projectID := r.URL.Query().Get("project_id")
+	table := r.URL.Query().Get("table")
+
+	var col ColumnRequest
+	if err := json.NewDecoder(r.Body).Decode(&col); err != nil {
+		http.Error(w, "Invalid JSON", 400)
+		return
+	}
+
+	if !validateName(col.Name) || !validateName(table) {
+		http.Error(w, "Invalid name", 400)
+		return
+	}
+
+	var projectCode string
+	err := config.MasterDB.QueryRow(
+		"SELECT code FROM projects WHERE id = ?",
+		projectID,
+	).Scan(&projectCode)
+
+	if err != nil {
+		http.Error(w, "Project not found", 404)
+		return
+	}
+
+	fullTable := fmt.Sprintf("%s_%s", projectCode, table)
+
+	def := col.Name + " " + col.Type
+	if !col.Nullable {
+		def += " NOT NULL"
+	}
+	if col.Unique {
+		def += " UNIQUE"
+	}
+
+	query := fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s", fullTable, def)
+
+	if _, err := config.MasterDB.Exec(query); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Write([]byte("COLUMN MODIFIED"))
+}
+
+/*
+====================================================
 ADD INDEX
 ====================================================
 */
@@ -650,7 +597,7 @@ func AddIndex(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project_id")
 	table := r.URL.Query().Get("table")
 
-	var idx IndexCreateReq
+	var idx IndexRequest
 	if err := json.NewDecoder(r.Body).Decode(&idx); err != nil {
 		http.Error(w, "Invalid JSON", 400)
 		return
