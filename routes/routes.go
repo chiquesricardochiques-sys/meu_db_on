@@ -3,7 +3,6 @@ package routes
 import (
 	"log"
 	"net/http"
-
 	"github.com/gorilla/mux"
 	"meu-provedor/handlers"
 	"meu-provedor/security"
@@ -11,16 +10,19 @@ import (
 
 func SetupRouter() *mux.Router {
 	r := mux.NewRouter()
-
 	protected := r.PathPrefix("/").Subrouter()
 	protected.Use(security.InternalOnly)
 
-	// ====== CRUD GENÉRICO ======
+	// ====== CRUD GENÉRICO (SIMPLES) ======
 	protected.HandleFunc("/data/insert", handlers.Insert).Methods("POST")
 	protected.HandleFunc("/data/get", handlers.Get).Methods("POST")
 	protected.HandleFunc("/data/update", handlers.Update).Methods("POST")
 	protected.HandleFunc("/data/delete", handlers.Delete).Methods("POST")
-	//protected.HandleFunc("/data/getqs", handlers.GetQueryString).Methods("GET")
+
+	// ====== CRUD AVANÇADO ======
+	protected.HandleFunc("/data/advanced-select", handlers.AdvancedSelect).Methods("POST")
+	protected.HandleFunc("/data/batch-insert", handlers.BatchInsert).Methods("POST")
+	protected.HandleFunc("/data/batch-update", handlers.BatchUpdate).Methods("POST")
 
 	// ====== PROJETOS ======
 	protected.HandleFunc("/projects", handlers.ListProjects).Methods("GET")
@@ -35,16 +37,9 @@ func SetupRouter() *mux.Router {
 	protected.HandleFunc("/instances/{id}", handlers.DeleteInstance).Methods("DELETE")
 
 	// ====== TABELAS (SCHEMA) ======
-	// Criar tabela (aceita com ou sem índices)
 	protected.HandleFunc("/schema/table", handlers.CreateProjectTable).Methods("POST")
-	
-	// Listar tabelas (?detailed=true para detalhes completos)
 	protected.HandleFunc("/schema/tables", handlers.ListProjectTables).Methods("GET")
-	
-	// Detalhes de uma tabela específica
 	protected.HandleFunc("/schema/table/details", handlers.GetTableDetails).Methods("GET")
-	
-	// Deletar tabela
 	protected.HandleFunc("/schema/table", handlers.DeleteProjectTable).Methods("DELETE")
 
 	// ====== COLUNAS ======
@@ -66,4 +61,3 @@ func StartServer(port string) {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
 }
-
