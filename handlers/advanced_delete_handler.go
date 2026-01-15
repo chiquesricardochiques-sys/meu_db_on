@@ -5,22 +5,13 @@ import (
 	"net/http"
 	"strings"
 
+	"meu-provedor/models"
 	"meu-provedor/services/data_service"
 )
 
-// DeleteRequest representa o body esperado
-type DeleteRequest struct {
-	ProjectID  int64                  `json:"project_id"`
-	InstanceID int64                  `json:"id_instancia"`
-	Table      string                 `json:"table"`
-	Where      map[string]interface{} `json:"where,omitempty"`
-	WhereRaw   string                 `json:"where_raw,omitempty"`
-	Mode       string                 `json:"mode,omitempty"` // hard | soft
-}
-
-// DeleteHandler processa a requisição
+// DeleteHandler processa a requisição de delete com modo hard ou soft
 func DeleteHandler(w http.ResponseWriter, r *http.Request) {
-	var req DeleteRequest
+	var req models.DeleteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
