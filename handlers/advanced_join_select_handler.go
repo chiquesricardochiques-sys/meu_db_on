@@ -4,33 +4,36 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"meu-provedor/config"
 	"meu-provedor/services/data_service"
 )
 
 /*
 ====================================================
-STRUCTS PARA REQUISIÇÃO ADVANCED SELECT
+REQUEST BODY – ADVANCED JOIN SELECT
 ====================================================
 */
 
-type JoinConfig struct {
-	Type  string `json:"type"`  // INNER, LEFT, RIGHT
-	Table string `json:"table"` // Tabela a juntar
-	On    string `json:"on"`    // Condição ON: "tabela1.id = tabela2.fk"
-	Alias string `json:"alias"` // Apelido da tabela
+type JoinBase struct {
+	Table   string   `json:"table"`
+	Alias   string   `json:"alias,omitempty"`
+	Columns []string `json:"columns,omitempty"`
 }
 
-type AdvancedQueryRequest struct {
+type JoinItem struct {
+	Type    string   `json:"type"`
+	Table   string   `json:"table"`
+	Alias   string   `json:"alias,omitempty"`
+	On      string   `json:"on"`
+	Columns []string `json:"columns,omitempty"`
+}
+
+type AdvancedJoinSelectRequest struct {
 	ProjectID  int64                  `json:"project_id"`
 	InstanceID int64                  `json:"id_instancia"`
-	Table      string                 `json:"table"`
-	Alias      string                 `json:"alias,omitempty"`
-	Type       string                 `json:"type"` // simple, join, group_by, advanced
-	Select     []string               `json:"columns,omitempty"`
-	Joins      []JoinConfig           `json:"joins,omitempty"`
+	Base       JoinBase               `json:"base"`
+	Joins      []JoinItem             `json:"joins,omitempty"`
 	Where      map[string]interface{} `json:"where,omitempty"`
-	WhereRaw   string                 `json:"where_raw,omitempty"`
+	WhereRaw   []string               `json:"where_raw,omitempty"`
 	GroupBy    string                 `json:"group_by,omitempty"`
 	Having     string                 `json:"having,omitempty"`
 	OrderBy    string                 `json:"order_by,omitempty"`
@@ -40,21 +43,21 @@ type AdvancedQueryRequest struct {
 
 /*
 ====================================================
-HANDLER ADVANCED SELECT
+HANDLER
 ====================================================
 */
 
-func AdvancedSelectHandler(w http.ResponseWriter, r *http.Request) {
-	var req AdvancedQueryRequest
+func AdvancedJoinSelectHandler(w http.ResponseWriter, r *http.Request) {
+	var req AdvancedJoinSelectRequest
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", 400)
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	// Chama o service que monta a query e executa
-	result, err := data_service.ExecuteSelect(req)
+	result, err := data_service.ExecuteAdvancedJoinSelect(req)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		http.Error(w, "Query failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 

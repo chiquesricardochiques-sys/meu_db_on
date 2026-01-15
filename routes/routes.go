@@ -3,6 +3,7 @@ package routes
 import (
 	"log"
 	"net/http"
+
 	"github.com/gorilla/mux"
 	"meu-provedor/handlers"
 	"meu-provedor/security"
@@ -10,44 +11,80 @@ import (
 
 func SetupRouter() *mux.Router {
 	r := mux.NewRouter()
+
 	protected := r.PathPrefix("/").Subrouter()
 	protected.Use(security.InternalOnly)
 
-	// ====== CRUD GENÉRICO (SIMPLES) ======
-	protected.HandleFunc("/data/insert", handlers.Insert).Methods("POST")
-	protected.HandleFunc("/data/get", handlers.Get).Methods("POST")
-	protected.HandleFunc("/data/update", handlers.Update).Methods("POST")
-	protected.HandleFunc("/data/delete", handlers.Delete).Methods("POST")
+	/*
+	====================================================
+	DATA ENGINE (NOVO PADRÃO)
+	====================================================
+	*/
 
-	// ====== CRUD AVANÇADO ======
-	protected.HandleFunc("/data/advanced-select", handlers.AdvancedSelect).Methods("POST")
-	protected.HandleFunc("/data/batch-insert", handlers.BatchInsert).Methods("POST")
-	protected.HandleFunc("/data/batch-update", handlers.BatchUpdate).Methods("POST")
+	// ====== SELECT ======
+	protected.HandleFunc("/data/select", handlers.AdvancedSelectHandler).Methods("POST")
+	protected.HandleFunc("/data/join-select", handlers.AdvancedJoinSelectHandler).Methods("POST")
 
-	// ====== PROJETOS ======
+	// ====== INSERT ======
+	protected.HandleFunc("/data/insert", handlers.InsertHandler).Methods("POST")
+	protected.HandleFunc("/data/batch-insert", handlers.BatchInsertHandler).Methods("POST")
+
+	// ====== UPDATE ======
+	protected.HandleFunc("/data/update", handlers.UpdateHandler).Methods("POST")
+	protected.HandleFunc("/data/batch-update", handlers.BatchUpdateHandler).Methods("POST")
+
+	// ====== DELETE ======
+	protected.HandleFunc("/data/delete", handlers.DeleteHandler).Methods("POST")
+
+	/*
+	====================================================
+	PROJETOS
+	====================================================
+	*/
+
 	protected.HandleFunc("/projects", handlers.ListProjects).Methods("GET")
 	protected.HandleFunc("/projects", handlers.CreateProject).Methods("POST")
 	protected.HandleFunc("/projects/{id}", handlers.UpdateProject).Methods("PUT")
 	protected.HandleFunc("/projects/{id}", handlers.DeleteProject).Methods("DELETE")
 
-	// ====== INSTÂNCIAS ======
+	/*
+	====================================================
+	INSTÂNCIAS
+	====================================================
+	*/
+
 	protected.HandleFunc("/instances", handlers.ListInstances).Methods("GET")
 	protected.HandleFunc("/instances", handlers.CreateInstance).Methods("POST")
 	protected.HandleFunc("/instances/{id}", handlers.UpdateInstance).Methods("PUT")
 	protected.HandleFunc("/instances/{id}", handlers.DeleteInstance).Methods("DELETE")
 
-	// ====== TABELAS (SCHEMA) ======
+	/*
+	====================================================
+	SCHEMA – TABELAS
+	====================================================
+	*/
+
 	protected.HandleFunc("/schema/table", handlers.CreateProjectTable).Methods("POST")
 	protected.HandleFunc("/schema/tables", handlers.ListProjectTables).Methods("GET")
 	protected.HandleFunc("/schema/table/details", handlers.GetTableDetails).Methods("GET")
 	protected.HandleFunc("/schema/table", handlers.DeleteProjectTable).Methods("DELETE")
 
-	// ====== COLUNAS ======
+	/*
+	====================================================
+	SCHEMA – COLUNAS
+	====================================================
+	*/
+
 	protected.HandleFunc("/schema/column", handlers.AddColumn).Methods("POST")
 	protected.HandleFunc("/schema/column", handlers.ModifyColumn).Methods("PUT")
 	protected.HandleFunc("/schema/column", handlers.DropColumn).Methods("DELETE")
 
-	// ====== ÍNDICES ======
+	/*
+	====================================================
+	SCHEMA – ÍNDICES
+	====================================================
+	*/
+
 	protected.HandleFunc("/schema/index", handlers.AddIndex).Methods("POST")
 	protected.HandleFunc("/schema/index", handlers.DropIndex).Methods("DELETE")
 
@@ -57,6 +94,7 @@ func SetupRouter() *mux.Router {
 func StartServer(port string) {
 	r := SetupRouter()
 	log.Println("🚀 Servidor iniciado na porta", port)
+
 	if err := http.ListenAndServe("0.0.0.0:"+port, r); err != nil {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
