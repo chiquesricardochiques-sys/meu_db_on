@@ -136,6 +136,18 @@ func RowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
 	return results, nil
 }
 
+// GetProjectCodeByID retorna o prefixo de um projeto dado seu ID
+func GetProjectCodeByID(projectID int) (string, error) {
+    var project Project
+    query := "SELECT prefix FROM projects WHERE id = ? LIMIT 1"
+    row := MasterDB.QueryRow(query, projectID)
+    err := row.Scan(&project.Prefix)
+    if err != nil {
+        return "", fmt.Errorf("erro ao buscar prefixo do projeto: %w", err)
+    }
+    return project.Prefix, nil
+}
+
 // CloseDB fecha a conexão com o banco
 func CloseDB() error {
 	if MasterDB != nil {
@@ -144,3 +156,4 @@ func CloseDB() error {
 	return nil
 
 }
+
