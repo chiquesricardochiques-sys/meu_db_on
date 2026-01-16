@@ -47,7 +47,7 @@ HANDLER
 ====================================================
 
 
-func AdvancedJoinSelectHandler(w http.ResponseWriter, r *http.Request) {
+func AdvancedJoinSelectHandlerr(w http.ResponseWriter, r *http.Request) {
 	var req AdvancedJoinSelectRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -66,3 +66,4 @@ func AdvancedJoinSelectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 */
+
