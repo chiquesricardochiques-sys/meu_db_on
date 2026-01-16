@@ -13,6 +13,7 @@ type SelectBuilder struct {
 	Joins     []string
 	Where     []string
 	GroupBy   string
+	Having    string
 	OrderBy   string
 	Limit     int
 	Offset    int
@@ -91,6 +92,9 @@ func (s *SelectBuilder) Build() string {
 	}
 	if s.GroupBy != "" {
 		query += " GROUP BY " + s.GroupBy
+		if s.Having != "" {
+			query += " HAVING " + s.Having
+		}
 	}
 	if s.OrderBy != "" {
 		query += " ORDER BY " + s.OrderBy
