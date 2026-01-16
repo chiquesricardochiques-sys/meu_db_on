@@ -5,28 +5,34 @@ import (
 	"strings"
 )
 
-// UpdateBuilder armazena as partes do UPDATE
+// ============================================================================
+// UPDATE BUILDER
+// ============================================================================
+
+// UpdateBuilder constrói queries UPDATE
 type UpdateBuilder struct {
-	Table string
-	Sets  []string
+	Table        string
+	Sets         []string
+	SetValues    []interface{}
 	WhereClauses []string
 	WhereValues  []interface{}
 }
 
-// NewUpdate cria um builder
+// NewUpdate cria um novo UpdateBuilder
 func NewUpdate(table string) *UpdateBuilder {
 	return &UpdateBuilder{
-		Table: table,
-		Sets: []string{},
+		Table:        table,
+		Sets:         []string{},
+		SetValues:    []interface{}{},
 		WhereClauses: []string{},
-		WhereValues: []interface{}{},
+		WhereValues:  []interface{}{},
 	}
 }
 
-// Set adiciona colunas a atualizar
+// Set adiciona uma coluna e valor para atualizar
 func (u *UpdateBuilder) Set(col string, val interface{}) *UpdateBuilder {
 	u.Sets = append(u.Sets, fmt.Sprintf("%s = ?", col))
-	u.WhereValues = append(u.WhereValues, val) // temporário, depois ajustamos
+	u.SetValues = append(u.SetValues, val)
 	return u
 }
 
@@ -37,29 +43,21 @@ func (u *UpdateBuilder) Where(condition string, args ...interface{}) *UpdateBuil
 	return u
 }
 
-// WhereRaw adiciona filtro customizado
+// WhereRaw adiciona filtro customizado sem parâmetros
 func (u *UpdateBuilder) WhereRaw(raw string) *UpdateBuilder {
 	u.WhereClauses = append(u.WhereClauses, "("+raw+")")
 	return u
 }
 
-// Build gera a query final
+// Build gera a query SQL final
 func (u *UpdateBuilder) Build() (string, []interface{}) {
 	setPart := strings.Join(u.Sets, ", ")
 	wherePart := strings.Join(u.WhereClauses, " AND ")
-	return fmt.Sprintf("UPDATE %s SET %s WHERE %s", u.Table, setPart, wherePart), u.WhereValues
-}
 
-// Função auxiliar de validação de nomes
-func IsValidIdentifier(s string) bool {
-	// Simples: apenas letras, números e underscore
-	for _, c := range s {
-		if !((c >= 'a' && c <= 'z') || 
-			(c >= 'A' && c <= 'Z') || 
-			(c >= '0' && c <= '9') || 
-			c == '_') {
-			return false
-		}
-	}
-	return true
+	query := fmt.Sprintf("UPDATE %s SET %s WHERE %s", u.Table, setPart, wherePart)
+
+	// Combina valores do SET com valores do WHERE
+	allValues := append(u.SetValues, u.WhereValues...)
+
+	return query, allValues
 }

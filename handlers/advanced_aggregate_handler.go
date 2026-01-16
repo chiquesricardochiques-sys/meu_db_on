@@ -3,58 +3,33 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-
-	"meu-provedor/config"
-	"meu-provedor/services/data_service"
+	"meu-provedor/models"
+	"meu-provedor/services"
 )
 
-type AggregateHTTPRequest struct {
-	ProjectID  int64                  `json:"project_id"`
-	InstanceID int64                  `json:"id_instancia"`
-	Table      string                 `json:"table"`
-	Operation  string                 `json:"operation"`
-	Column     string                 `json:"column,omitempty"`
-	Where      map[string]interface{} `json:"where,omitempty"`
-}
+// ============================================================================
+// AGGREGATE HANDLER
+// ============================================================================
 
-func AdvancedAggregate(w http.ResponseWriter, r *http.Request) {
-	var req AggregateHTTPRequest
+// AggregateHandler processa requisições de agregação (COUNT, SUM, AVG, MIN, MAX, EXISTS)
+func AggregateHandler(w http.ResponseWriter, r *http.Request) {
+	var req models.AggregateRequest
+	
+	// Decodificar JSON
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", 400)
+		RespondError(w, "JSON inválido", http.StatusBadRequest)
 		return
 	}
 
-	projectCode, err := getProjectCodeByID(req.ProjectID)
+	// Executar agregação
+	result, err := services.ExecuteAggregate(req)
 	if err != nil {
-		http.Error(w, "project not found", 404)
+		RespondError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	table, err := buildTableName(projectCode, req.Table)
-	if err != nil {
-		http.Error(w, err.Error(), 400)
-		return
-	}
-
-	result, err := data_service.ExecuteAggregate(
-		config.MasterDB,
-		table,
-		data_service.AggregateRequest{
-			ProjectID:  req.ProjectID,
-			InstanceID: req.InstanceID,
-			Table:      table,
-			Operation:  req.Operation,
-			Column:     req.Column,
-			Where:      req.Where,
-		},
-	)
-
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	// Retornar resultado
+	RespondSuccess(w, map[string]interface{}{
 		"success": true,
 		"result":  result,
 	})

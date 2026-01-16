@@ -11,7 +11,7 @@ import (
 ====================================================
 REQUEST BODY – ADVANCED JOIN SELECT
 ====================================================
-
+*/
 
 type JoinBase struct {
 	Table   string   `json:"table"`
@@ -41,13 +41,13 @@ type AdvancedJoinSelectRequest struct {
 	Offset     int                    `json:"offset,omitempty"`
 }
 
-
+/*
 ====================================================
 HANDLER
 ====================================================
+*/
 
-
-func AdvancedJoinSelectHandlerr(w http.ResponseWriter, r *http.Request) {
+func AdvancedJoinSelectHandler(w http.ResponseWriter, r *http.Request) {
 	var req AdvancedJoinSelectRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -64,6 +64,3 @@ func AdvancedJoinSelectHandlerr(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
-
-*/
-

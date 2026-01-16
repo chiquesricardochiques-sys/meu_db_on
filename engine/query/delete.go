@@ -5,19 +5,23 @@ import (
 	"strings"
 )
 
-// DeleteBuilder armazena as partes do DELETE
+// ============================================================================
+// DELETE BUILDER
+// ============================================================================
+
+// DeleteBuilder constrói queries DELETE
 type DeleteBuilder struct {
 	Table        string
 	WhereClauses []string
 	WhereValues  []interface{}
 }
 
-// NewDelete cria um builder
+// NewDelete cria um novo DeleteBuilder
 func NewDelete(table string) *DeleteBuilder {
 	return &DeleteBuilder{
-		Table: table,
+		Table:        table,
 		WhereClauses: []string{},
-		WhereValues: []interface{}{},
+		WhereValues:  []interface{}{},
 	}
 }
 
@@ -28,14 +32,15 @@ func (d *DeleteBuilder) Where(condition string, args ...interface{}) *DeleteBuil
 	return d
 }
 
-// WhereRaw adiciona filtro customizado
+// WhereRaw adiciona filtro customizado sem parâmetros
 func (d *DeleteBuilder) WhereRaw(raw string) *DeleteBuilder {
 	d.WhereClauses = append(d.WhereClauses, "("+raw+")")
 	return d
 }
 
-// Build gera query final
+// Build gera a query SQL final
 func (d *DeleteBuilder) Build() (string, []interface{}) {
 	wherePart := strings.Join(d.WhereClauses, " AND ")
-	return fmt.Sprintf("DELETE FROM %s WHERE %s", d.Table, wherePart), d.WhereValues
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s", d.Table, wherePart)
+	return query, d.WhereValues
 }

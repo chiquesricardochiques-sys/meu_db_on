@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+// ============================================================================
+// AGGREGATE BUILDER (COUNT, SUM, AVG, MIN, MAX, EXISTS)
+// ============================================================================
+
+// AggregateBuilder constrói queries de agregação
 type AggregateBuilder struct {
 	Table     string
 	Alias     string
@@ -14,6 +19,7 @@ type AggregateBuilder struct {
 	Values    []interface{}
 }
 
+// NewAggregate cria um novo AggregateBuilder
 func NewAggregate(table, alias, operation, column string) *AggregateBuilder {
 	if alias == "" {
 		alias = table
@@ -21,18 +27,21 @@ func NewAggregate(table, alias, operation, column string) *AggregateBuilder {
 	return &AggregateBuilder{
 		Table:     table,
 		Alias:     alias,
-		Operation: strings.ToUpper(operation),
+		Operation: NormalizeOperation(operation),
 		Column:    column,
 		Where:     []string{},
 		Values:    []interface{}{},
 	}
 }
 
-func (a *AggregateBuilder) AddWhere(condition string, args ...interface{}) {
+// AddWhere adiciona condição WHERE
+func (a *AggregateBuilder) AddWhere(condition string, args ...interface{}) *AggregateBuilder {
 	a.Where = append(a.Where, condition)
 	a.Values = append(a.Values, args...)
+	return a
 }
 
+// Build gera a query SQL final
 func (a *AggregateBuilder) Build() string {
 	target := "*"
 	if a.Column != "" {
@@ -57,4 +66,9 @@ func (a *AggregateBuilder) Build() string {
 	}
 
 	return query
+}
+
+// GetValues retorna os valores dos parâmetros
+func (a *AggregateBuilder) GetValues() []interface{} {
+	return a.Values
 }

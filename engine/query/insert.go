@@ -5,12 +5,18 @@ import (
 	"strings"
 )
 
+// ============================================================================
+// INSERT BUILDER
+// ============================================================================
+
+// InsertBuilder constrói queries INSERT
 type InsertBuilder struct {
-	Table    string
-	Columns  []string
-	Values   [][]interface{}
+	Table   string
+	Columns []string
+	Values  [][]interface{}
 }
 
+// NewInsert cria um novo InsertBuilder
 func NewInsert(table string, columns []string) *InsertBuilder {
 	return &InsertBuilder{
 		Table:   table,
@@ -19,13 +25,16 @@ func NewInsert(table string, columns []string) *InsertBuilder {
 	}
 }
 
+// AddRow adiciona uma linha de valores
 func (b *InsertBuilder) AddRow(row []interface{}) *InsertBuilder {
 	b.Values = append(b.Values, row)
 	return b
 }
 
+// Build gera a query SQL final e retorna valores achatados
 func (b *InsertBuilder) Build() (string, []interface{}) {
-	placeholders := "(" + strings.Repeat("?,", len(b.Columns)-1) + "?)"
+	placeholders := BuildPlaceholders(len(b.Columns))
+	
 	var allPlaceholders []string
 	var allValues []interface{}
 
@@ -34,10 +43,12 @@ func (b *InsertBuilder) Build() (string, []interface{}) {
 		allValues = append(allValues, row...)
 	}
 
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s",
+	query := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
 		b.Table,
 		strings.Join(b.Columns, ","),
 		strings.Join(allPlaceholders, ","),
 	)
+
 	return query, allValues
 }

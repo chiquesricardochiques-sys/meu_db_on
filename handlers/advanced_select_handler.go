@@ -8,34 +8,56 @@ import (
 	"meu-provedor/models"
 )
 
-/*
-====================================================
-REQUEST BODY – ADVANCED SELECT
-====================================================
-*/
+// ============================================================================
+// SELECT HANDLERS
+// ============================================================================
 
-
-
-/*
-====================================================
-HANDLER
-====================================================
-*/
-
+// AdvancedSelectHandler processa requisições de SELECT avançado
 func AdvancedSelectHandler(w http.ResponseWriter, r *http.Request) {
 	var req models.AdvancedSelectRequest
-
+	
+	// Decodificar JSON
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		RespondError(w, "JSON inválido", http.StatusBadRequest)
 		return
 	}
 
-	result, err := data_service.ExecuteAdvancedSelect(req)
+	// Executar SELECT
+	result, err := services.ExecuteAdvancedSelect(req)
 	if err != nil {
-		http.Error(w, "Select failed: "+err.Error(), http.StatusInternalServerError)
+		RespondError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	// Retornar resultado
+	RespondSuccess(w, map[string]interface{}{
+		"success": true,
+		"data":    result,
+		"count":   len(result),
+	})
+}
+
+// AdvancedJoinSelectHandler processa requisições de SELECT com múltiplos JOINs
+func AdvancedJoinSelectHandler(w http.ResponseWriter, r *http.Request) {
+	var req models.AdvancedJoinSelectRequest
+	
+	// Decodificar JSON
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, "JSON inválido", http.StatusBadRequest)
+		return
+	}
+
+	// Executar JOIN SELECT
+	result, err := services.ExecuteAdvancedJoinSelect(req)
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Retornar resultado
+	RespondSuccess(w, map[string]interface{}{
+		"success": true,
+		"data":    result,
+		"count":   len(result),
+	})
 }

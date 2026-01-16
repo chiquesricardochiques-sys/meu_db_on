@@ -3,39 +3,60 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-
-	"meu-provedor/services/data_service"
+	"meu-provedor/models"
+	"meu-provedor/services"
 )
 
-type BatchInsertRequest struct {
-	ProjectID  int64                    `json:"project_id"`
-	InstanceID int64                    `json:"instance_id"`
-	Table      string                   `json:"table"`
-	Data       []map[string]interface{} `json:"data"`
+// ============================================================================
+// INSERT HANDLERS
+// ============================================================================
+
+// InsertHandler processa requisições de INSERT único
+func InsertHandler(w http.ResponseWriter, r *http.Request) {
+	var req models.InsertRequest
+	
+	// Decodificar JSON
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RespondError(w, "JSON inválido", http.StatusBadRequest)
+		return
+	}
+
+	// Executar INSERT
+	lastID, err := services.ExecuteInsert(req)
+	if err != nil {
+		RespondError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Retornar resultado
+	RespondSuccess(w, map[string]interface{}{
+		"success": true,
+		"message": "Registro inserido com sucesso",
+		"id":      lastID,
+	})
 }
 
+// BatchInsertHandler processa requisições de INSERT em lote
 func BatchInsertHandler(w http.ResponseWriter, r *http.Request) {
-	var req BatchInsertRequest
+	var req models.BatchInsertRequest
+	
+	// Decodificar JSON
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", 400)
+		RespondError(w, "JSON inválido", http.StatusBadRequest)
 		return
 	}
 
-	if len(req.Data) == 0 {
-		http.Error(w, "No data provided", 400)
-		return
-	}
-
-	count, err := data_service.ExecuteBatchInsert(req)
+	// Executar BATCH INSERT
+	count, err := services.ExecuteBatchInsert(req)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		RespondError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	// Retornar resultado
+	RespondSuccess(w, map[string]interface{}{
 		"success": true,
-		"message": "Batch insert completed",
+		"message": "Registros inseridos com sucesso",
 		"count":   count,
 	})
 }

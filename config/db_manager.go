@@ -1,91 +1,87 @@
 package config
 
 import (
-    "crypto/tls"
-    "crypto/x509"
-    "database/sql"
-    "io/ioutil"
-    "log"
-    "os"
-    "fmt"
-    "github.com/go-sql-driver/mysql"
+	"crypto/tls"
+	"crypto/x509"
+	"database/sql"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+
+	"github.com/go-sql-driver/mysql"
 )
 
-// Estrutura que representa um projeto cadastrado
-type Project struct {
-    ID     int
-    Name   string
-    Prefix string // Prefixo único para as tabelas do projeto
-    ApiKey string
-}
+// ============================================================================
+// DATABASE CONNECTION
+// ============================================================================
 
-// Mapa global de conexões (apenas 1 database agora)
-var Databases = map[string]*sql.DB{}
-
-// Banco master que contém a tabela de projetos
+// MasterDB é a conexão global com o banco de dados
 var MasterDB *sql.DB
 
-// Conecta ao banco master (Aiven SSL)
-func ConnectMaster() {
-    user := os.Getenv("MYSQLUSER")
-    pass := os.Getenv("MYSQLPASSWORD")
-    host := os.Getenv("MYSQLHOST")
-    port := os.Getenv("MYSQLPORT")
-    dbName := os.Getenv("MYSQLDATABASE")
+// ConnectMaster estabelece conexão com o banco master
+func ConnectMaster() error {
+	user := os.Getenv("MYSQLUSER")
+	pass := os.Getenv("MYSQLPASSWORD")
+	host := os.Getenv("MYSQLHOST")
+	port := os.Getenv("MYSQLPORT")
+	dbName := os.Getenv("MYSQLDATABASE")
 
-    // Configuração de SSL (se estiver utilizando)
-    rootCertPool := x509.NewCertPool()
-    pem, err := ioutil.ReadFile("ca.pem")
-    if err != nil {
-        log.Fatalf("Erro ao ler CA: %v", err)
-    }
-    if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-        log.Fatalf("Erro ao adicionar CA")
-    }
+	// Validar variáveis obrigatórias
+	if user == "" || pass == "" || host == "" || port == "" || dbName == "" {
+		return fmt.Errorf("variáveis de ambiente do banco não configuradas")
+	}
 
-    tlsConfig := &tls.Config{
-        RootCAs: rootCertPool,
-    }
+	// Configurar TLS (se ca.pem existir)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", user, pass, host, port, dbName)
 
-    err = mysql.RegisterTLSConfig("aiven", tlsConfig)
-    if err != nil {
-        log.Fatalf("Erro ao registrar TLS config: %v", err)
-    }
+	if _, err := os.Stat("ca.pem"); err == nil {
+		rootCertPool := x509.NewCertPool()
+		pem, err := ioutil.ReadFile("ca.pem")
+		if err != nil {
+			return fmt.Errorf("erro ao ler ca.pem: %w", err)
+		}
 
-    dsn := user + ":" + pass + "@tcp(" + host + ":" + port + ")/" + dbName + "?parseTime=true&tls=aiven"
-    db, err := sql.Open("mysql", dsn)
-    if err != nil {
-        log.Fatalf("Erro ao conectar no MySQL Aiven: %v", err)
-    }
+		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+			return fmt.Errorf("erro ao adicionar certificado CA")
+		}
 
-    if err := db.Ping(); err != nil {
-        log.Fatalf("Erro ao pingar banco: %v", err)
-    }
+		tlsConfig := &tls.Config{
+			RootCAs: rootCertPool,
+		}
 
-    MasterDB = db
-    log.Println("✅ Conectado ao banco master Aiven:", dbName)
+		if err := mysql.RegisterTLSConfig("aiven", tlsConfig); err != nil {
+			return fmt.Errorf("erro ao registrar TLS config: %w", err)
+		}
+
+		dsn += "&tls=aiven"
+	}
+
+	// Conectar ao banco
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("erro ao conectar no MySQL: %w", err)
+	}
+
+	// Verificar conexão
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("erro ao pingar banco: %w", err)
+	}
+
+	// Configurações de pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+
+	MasterDB = db
+	log.Println("✅ Conectado ao banco master:", dbName)
+
+	return nil
 }
 
-
-// Retorna o projeto baseado na API KEY
-func GetProjectByApiKey(apiKey string) (*Project, error) {
-    var project Project
-    query := "SELECT id, name, prefix, api_key FROM projects WHERE api_key = ? LIMIT 1"
-    row := MasterDB.QueryRow(query, apiKey)
-    err := row.Scan(&project.ID, &project.Name, &project.Prefix, &project.ApiKey)
-    if err != nil {
-        return nil, err
-    }
-    return &project, nil
+// CloseDB fecha a conexão com o banco
+func CloseDB() error {
+	if MasterDB != nil {
+		return MasterDB.Close()
+	}
+	return nil
 }
-
-// Retorna a conexão para o único banco de dados do projeto
-func GetDBConnection(project *Project) (*sql.DB, error) {
-    // Utilizamos a conexão global MasterDB, pois agora é único
-    if MasterDB == nil {
-        return nil, fmt.Errorf("não foi possível encontrar a conexão com o banco de dados")
-    }
-    return MasterDB, nil
-}
-
-
