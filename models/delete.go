@@ -9,6 +9,20 @@ type DeleteRequest struct {
 	Mode       string                 `json:"mode,omitempty"` // hard | soft
 }
 
+type JoinBase struct {
+	Table   string   `json:"table"`
+	Alias   string   `json:"alias,omitempty"`
+	Columns []string `json:"columns,omitempty"`
+}
+
+type JoinItem struct {
+	Type    string   `json:"type"`
+	Table   string   `json:"table"`
+	Alias   string   `json:"alias,omitempty"`
+	On      string   `json:"on"`
+	Columns []string `json:"columns,omitempty"`
+}
+
 type AdvancedJoinSelectRequest struct {
 	ProjectID  int64                  `json:"project_id"`
 	InstanceID int64                  `json:"id_instancia"`
@@ -79,5 +93,6 @@ type UpdateRequest struct {
     Where      map[string]interface{} `json:"where,omitempty"`  // filtros simples
     WhereRaw   string                 `json:"where_raw,omitempty"`
 }
+
 
 
