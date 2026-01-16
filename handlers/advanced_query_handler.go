@@ -44,20 +44,5 @@ HANDLER ADVANCED SELECT
 ====================================================
 */
 
-func AdvancedSelectHandler(w http.ResponseWriter, r *http.Request) {
-	var req AdvancedQueryRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", 400)
-		return
-	}
 
-	// Chama o service que monta a query e executa
-	result, err := data_service.ExecuteSelect(req)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
-}
