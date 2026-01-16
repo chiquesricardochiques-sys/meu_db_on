@@ -6,11 +6,11 @@ import (
 
 	"meu-provedor/config"
 	"meu-provedor/engine/query"
-	"meu-provedor/handlers"
+	"meu-provedor/models"
 )
 
 // ExecuteUpdate monta e executa a query de UPDATE
-func ExecuteUpdate(req handlers.UpdateRequest) (int, error) {
+func ExecuteUpdate(req models.UpdateRequest) (int, error) {
 	// Obter projectCode
 	projectCode, err := getProjectCodeByID(req.ProjectID)
 	if err != nil {

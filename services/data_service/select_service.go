@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"meu-provedor/config"
-	"meu-provedor/handlers"
+	"meu-provedor/models"
 	"meu-provedor/engine/query"
 )
 
@@ -15,7 +15,7 @@ EXECUTE SELECT - SERVIÇO
 ====================================================
 */
 
-func ExecuteSelect(req handlers.AdvancedQueryRequest) ([]map[string]interface{}, error) {
+func ExecuteSelect(req models.AdvancedQueryRequest) ([]map[string]interface{}, error) {
 
 	// Obter prefixo do projeto
 	projectCode, err := getProjectCodeByID(req.ProjectID)

@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"meu-provedor/config"
-	"meu-provedor/handlers"
+	"meu-provedor/models"
 )
 
-func ExecuteBatchInsert(req handlers.BatchInsertRequest) (int, error) {
+func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 
 	projectCode, err := getProjectCodeByID(req.ProjectID)
 	if err != nil {
