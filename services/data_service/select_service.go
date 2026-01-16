@@ -15,7 +15,7 @@ EXECUTE SELECT - SERVIÇO
 ====================================================
 */
 
-func ExecuteSelect(req models.AdvancedQueryRequest) ([]map[string]interface{}, error) {
+func ExecuteAdvancedSelect(req models.AdvancedSelectRequest) ([]map[string]interface{}, error) {
 
 	// Obter prefixo do projeto
 	projectCode, err := getProjectCodeByID(req.ProjectID)
@@ -127,5 +127,6 @@ func getProjectCodeByID(projectID int64) (string, error) {
 	}
 	return code, nil
 }
+
 
 
