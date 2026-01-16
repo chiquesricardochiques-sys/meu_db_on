@@ -1,4 +1,4 @@
-package data_service
+package services
 
 import (
 	"database/sql"
@@ -71,3 +71,4 @@ func ensureSoftDeleteColumn(db *sql.DB, table string) error {
 
 	return nil
 }
+
