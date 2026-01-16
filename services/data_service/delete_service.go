@@ -4,18 +4,17 @@ import (
 	"fmt"
 	"meu-provedor/config"
 	"meu-provedor/engine/query"
-	"meu-provedor/handlers"
+	"meu-provedor/models" // <- usar structs aqui
 )
 
 // ExecuteDelete monta e executa o DELETE
-func ExecuteDelete(req handlers.DeleteRequest) (int, error) {
+func ExecuteDelete(req models.DeleteRequest) (int, error) {
 	projectCode, err := getProjectCodeByID(req.ProjectID)
 	if err != nil {
 		return 0, fmt.Errorf("project not found")
 	}
 
 	table := fmt.Sprintf("%s_%s", projectCode, req.Table)
-
 	builder := query.NewDelete(table)
 
 	// Filtro obrigatório id_instancia
