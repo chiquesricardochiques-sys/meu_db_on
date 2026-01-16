@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"meu-provedor/models"
-	"meu-provedor/services"
+	"meu-provedor/services/data_service"
 )
 
 // ============================================================================

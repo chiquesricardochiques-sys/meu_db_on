@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"meu-provedor/models"
-	"meu-provedor/services"
+	"meu-provedor/services/data_service"
 )
 
 // ============================================================================
