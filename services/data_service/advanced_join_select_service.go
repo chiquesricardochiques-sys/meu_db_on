@@ -7,6 +7,13 @@ import (
 	"meu-provedor/engine/query"
 	"meu-provedor/models"
 )
+// buildTableName retorna o nome físico da tabela com prefixo do projeto
+func buildTableName(projectCode, table string) (string, error) {
+    if table == "" {
+        return "", fmt.Errorf("table name cannot be empty")
+    }
+    return fmt.Sprintf("%s_%s", projectCode, table), nil
+}
 
 /*
 ====================================================
@@ -90,3 +97,4 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 
 	return rowsToMap(rows), nil
 }
+
