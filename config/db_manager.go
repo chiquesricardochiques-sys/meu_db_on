@@ -19,6 +19,15 @@ import (
 // MasterDB é a conexão global com o banco de dados
 var MasterDB *sql.DB
 
+// Estrutura de projeto
+type Project struct {
+	ID     int
+	Name   string
+	Prefix string
+	ApiKey string
+}
+
+
 // ConnectMaster estabelece conexão com o banco master
 func ConnectMaster() error {
 	user := os.Getenv("MYSQLUSER")
@@ -78,10 +87,60 @@ func ConnectMaster() error {
 	return nil
 }
 
+// GetProjectByApiKey retorna projeto pelo apiKey
+func GetProjectByApiKey(apiKey string) (*Project, error) {
+	var project Project
+	row := MasterDB.QueryRow("SELECT id, name, prefix, api_key FROM projects WHERE api_key=? LIMIT 1", apiKey)
+	err := row.Scan(&project.ID, &project.Name, &project.Prefix, &project.ApiKey)
+	if err != nil {
+		return nil, err
+	}
+	return &project, nil
+}
+
+
+// GetDBConnection retorna a conexão para um projeto
+func GetDBConnection(project *Project) (*sql.DB, error) {
+	if MasterDB == nil {
+		return nil, fmt.Errorf("MasterDB não inicializado")
+	}
+	return MasterDB, nil
+}
+
+// Funções utilitárias usadas pelos services
+func BuildTableName(project *Project, table string) string {
+	return fmt.Sprintf("%s_%s", project.Prefix, table)
+}
+
+func RowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]interface{}
+	for rows.Next() {
+		columns := make([]interface{}, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, err
+		}
+		m := make(map[string]interface{})
+		for i, colName := range cols {
+			m[colName] = columns[i]
+		}
+		results = append(results, m)
+	}
+	return results, nil
+}
+
 // CloseDB fecha a conexão com o banco
 func CloseDB() error {
 	if MasterDB != nil {
 		return MasterDB.Close()
 	}
 	return nil
+
 }
