@@ -2,6 +2,7 @@ package data_service
 
 import (
 	"fmt"
+	"database/sql"
 
 	"meu-provedor/config"
 	"meu-provedor/models"
@@ -126,4 +127,5 @@ func getProjectCodeByID(projectID int64) (string, error) {
 	}
 	return code, nil
 }
+
 
