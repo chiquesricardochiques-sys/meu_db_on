@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"meu-provedor/models"
 	"meu-provedor/config"
 	"meu-provedor/engine/query"
 )
 
 // ExecuteSoftDelete executa soft delete (UPDATE deleted_at)
-func ExecuteSoftDelete(req DeleteRequest) (int64, error) {
+func ExecuteSoftDelete(req models.DeleteRequest) (int64, error) {
 	projectCode, err := getProjectCodeByID(req.ProjectID)
 	if err != nil {
 		return 0, err
@@ -71,3 +72,4 @@ func ensureSoftDeleteColumn(db *sql.DB, table string) error {
 
 	return nil
 }
+
