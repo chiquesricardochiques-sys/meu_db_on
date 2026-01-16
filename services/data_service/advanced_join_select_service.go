@@ -16,13 +16,13 @@ EXECUTOR – ADVANCED JOIN SELECT
 
 func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[string]interface{}, error) {
 	// resolve projeto
-	projectCode, err := getProjectCodeByID(req.ProjectID)
+	projectCode, err := config.GetProjectCodeByID(req.ProjectID)  // Atualizando para função exportada
 	if err != nil {
 		return nil, err
 	}
 
 	// tabela base com prefixo
-	baseTable, err := buildTableName(projectCode, req.Base.Table)
+	baseTable, err := config.BuildTableName(projectCode, req.Base.Table)  // Atualizando para função exportada
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 
 	// JOINS
 	for _, j := range req.Joins {
-		joinTable, err := buildTableName(projectCode, j.Table)
+		joinTable, err := config.BuildTableName(projectCode, j.Table)  // Atualizando para função exportada
 		if err != nil {
 			return nil, err
 		}
@@ -88,6 +88,5 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 	}
 	defer rows.Close()
 
-	return rowsToMap(rows), nil
+	return config.RowsToMap(rows)  // Atualizando para função exportada
 }
-
