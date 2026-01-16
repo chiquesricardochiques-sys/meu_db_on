@@ -1,4 +1,4 @@
-package data_service
+package services
 
 import (
 	"fmt"
@@ -90,3 +90,4 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 
 	return rowsToMap(rows), nil
 }
+
