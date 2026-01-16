@@ -2,7 +2,6 @@ package data_service
 
 import (
 	"fmt"
-	"strings"
 
 	"meu-provedor/config"
 	"meu-provedor/engine/query"
@@ -64,3 +63,4 @@ func ExecuteUpdate(req models.UpdateRequest) (int, error) {
 
 	return int(count), nil
 }
+
