@@ -5,6 +5,7 @@ import (
 
 	"meu-provedor/config"
 	"meu-provedor/engine/query"
+	"meu-provedor/models"
 )
 
 /*
@@ -13,7 +14,7 @@ EXECUTOR – ADVANCED JOIN SELECT
 ====================================================
 */
 
-func ExecuteAdvancedJoinSelect(req AdvancedJoinSelectRequest) ([]map[string]interface{}, error) {
+func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[string]interface{}, error) {
 	// resolve projeto
 	projectCode, err := getProjectCodeByID(req.ProjectID)
 	if err != nil {
