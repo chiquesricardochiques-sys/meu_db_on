@@ -1,4 +1,4 @@
-package services
+package data_service
 
 import (
 	"database/sql"
@@ -45,9 +45,8 @@ func RowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	
 	var result []map[string]interface{}
-
 	for rows.Next() {
 		values := make([]interface{}, len(cols))
 		ptrs := make([]interface{}, len(cols))
@@ -55,16 +54,15 @@ func RowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
 		for i := range values {
 			ptrs[i] = &values[i]
 		}
-
+		
 		if err := rows.Scan(ptrs...); err != nil {
 			return nil, err
 		}
-
+		
 		row := make(map[string]interface{})
 		for i, col := range cols {
 			val := values[i]
 			
-			// Converte []byte para string
 			if b, ok := val.([]byte); ok {
 				row[col] = string(b)
 			} else {
@@ -74,11 +72,11 @@ func RowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
 		
 		result = append(result, row)
 	}
-
+	
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
+	
 	return result, nil
 }
 
@@ -96,13 +94,13 @@ func EnsureSoftDeleteColumn(db *sql.DB, table string) error {
 	if err := db.QueryRow(queryCheck, table).Scan(&exists); err != nil {
 		return fmt.Errorf("erro ao verificar coluna deleted_at: %w", err)
 	}
-
+	
 	if exists == 0 {
 		alter := fmt.Sprintf("ALTER TABLE %s ADD COLUMN deleted_at DATETIME NULL", table)
 		if _, err := db.Exec(alter); err != nil {
 			return fmt.Errorf("erro ao criar coluna deleted_at: %w", err)
 		}
 	}
-
+	
 	return nil
 }
