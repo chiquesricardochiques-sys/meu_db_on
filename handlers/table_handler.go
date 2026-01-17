@@ -6,8 +6,6 @@ import (
 
 	"meu-provedor/models"
 	
-	"fmt"
-	"strings"
 
 	tableService "meu-provedor/services/table"
 )
@@ -161,4 +159,5 @@ func DropIndex(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("INDEX DROPPED"))
 }
+
 
