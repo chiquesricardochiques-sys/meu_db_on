@@ -7,7 +7,7 @@ import (
 )
 
 func InsertProject(req models.ProjectRequest) error {
-	_, err := config.Master.Exec(`
+	_, err := config.MasterDB.Exec(`
 		INSERT INTO projects (name, code, api_key, type, version, status)
 		VALUES (?, ?, ?, ?, ?, ?)`,
 		req.Name,
@@ -21,7 +21,7 @@ func InsertProject(req models.ProjectRequest) error {
 }
 
 func ListProjects() ([]models.Project, error) {
-	rows, err := config.Master.Query(`
+	rows, err := config.MasterDB.Query(`
 		SELECT id, name, code, api_key, type, version, status, created_at
 		FROM projects`,
 	)
@@ -51,7 +51,7 @@ func ListProjects() ([]models.Project, error) {
 }
 
 func UpdateProject(id int64, req models.ProjectRequest) error {
-	_, err := config.Master.Exec(`
+	_, err := config.MasterDB.Exec(`
 		UPDATE projects
 		SET name=?, code=?, type=?, version=?, status=?
 		WHERE id=?`,
@@ -66,13 +66,13 @@ func UpdateProject(id int64, req models.ProjectRequest) error {
 }
 
 func DeleteProject(id int64) error {
-	_, err := config.Master.Exec(`DELETE FROM projects WHERE id=?`, id)
+	_, err := config.MasterDB.Exec(`DELETE FROM projects WHERE id=?`, id)
 	return err
 }
 
 func ProjectCodeExists(code string) (bool, error) {
 	var exists int
-	err := config.Master.QueryRow(
+	err := config.MasterDB.QueryRow(
 		`SELECT 1 FROM projects WHERE code=? LIMIT 1`,
 		code,
 	).Scan(&exists)
@@ -83,3 +83,4 @@ func ProjectCodeExists(code string) (bool, error) {
 
 	return err == nil, err
 }
+
