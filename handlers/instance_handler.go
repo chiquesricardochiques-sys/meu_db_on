@@ -18,7 +18,7 @@ func CreateInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := instanceService.Create(req); err != nil {
+	if err := instance.Create(req); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
@@ -39,7 +39,7 @@ func ListInstances(w http.ResponseWriter, r *http.Request) {
 		projectID = &id
 	}
 
-	instances, err := instanceService.List(projectID)
+	instances, err := instance.List(projectID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -54,7 +54,7 @@ func UpdateInstance(w http.ResponseWriter, r *http.Request) {
 	var req models.InstanceRequest
 	json.NewDecoder(r.Body).Decode(&req)
 
-	if err := instanceService.Update(id, req); err != nil {
+	if err := instance.Update(id, req); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
@@ -72,4 +72,5 @@ func DeleteInstance(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("INSTANCE DELETED"))
 }
+
 
