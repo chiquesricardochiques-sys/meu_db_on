@@ -7,7 +7,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	instanceService "meu-provedor/services/instance"
+	"meu-provedor/services/instance"
 	"meu-provedor/models"
 )
 
@@ -65,10 +65,11 @@ func UpdateInstance(w http.ResponseWriter, r *http.Request) {
 func DeleteInstance(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 
-	if err := instanceService.Delete(id); err != nil {
+	if err := instance.Delete(id); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
 
 	w.Write([]byte("INSTANCE DELETED"))
 }
+
