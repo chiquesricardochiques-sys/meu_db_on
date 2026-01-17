@@ -1,10 +1,5 @@
 package models
 
-import "time"
-
-
-
-
 
 type InstanceRequest struct {
 	ProjectID   int64                  `json:"project_id"`
@@ -14,4 +9,5 @@ type InstanceRequest struct {
 	Status      string                 `json:"status"`
 	Settings    map[string]interface{} `json:"settings"`
 }
+
 
