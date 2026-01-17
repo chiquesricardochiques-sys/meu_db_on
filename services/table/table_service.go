@@ -1,6 +1,7 @@
 package table
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"meu-provedor/config"
@@ -260,3 +261,4 @@ func getIndexes(fullTable string) ([]models.IndexDetail, error) {
 	}
 	return indexes, nil
 }
+
