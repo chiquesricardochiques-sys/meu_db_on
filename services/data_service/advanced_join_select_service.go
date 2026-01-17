@@ -81,5 +81,11 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 	}
 	defer rows.Close()
 
-	return config.RowsToMap(rows), nil
+	result, err := config.RowsToMap(rows)
+	if err != nil {
+	    return nil, err
+	}
+	return result, nil
+
 }
+
