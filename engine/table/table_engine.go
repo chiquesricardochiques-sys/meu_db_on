@@ -1,7 +1,6 @@
 package table
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -76,4 +75,5 @@ func DropTable(projectCode, table string) error {
 	_, err := config.MasterDB.Exec("DROP TABLE " + fullTable)
 	return err
 }
+
 
