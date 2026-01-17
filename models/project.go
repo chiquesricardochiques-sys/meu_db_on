@@ -1,8 +1,5 @@
 package models
 
-import "time"
-
-
 
 type ProjectRequest struct {
 	Name    string `json:"name"`
@@ -12,4 +9,5 @@ type ProjectRequest struct {
 	Version string `json:"version"`
 	Status  string `json:"status"`
 }
+
 
