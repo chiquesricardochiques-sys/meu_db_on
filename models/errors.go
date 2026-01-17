@@ -32,6 +32,6 @@ var (
 	ErrDatabaseConnection = errors.New("erro de conexão com banco de dados")
 	// erro para projetos
 	ErrInvalidProjectData = errors.New("dados do projeto inválidos")
-	ErrProjectNotFound    = errors.New("projeto não encontrado")
 	ErrProjectCodeExists  = errors.New("project code já existe")
+
 )
