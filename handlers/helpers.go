@@ -6,7 +6,7 @@ import (
 )
 
 // ============================================================================
-// HELPER FUNCTIONS - Funções auxiliares para handlers
+// HELPER FUNCTIONS - Funções auxiliares para handlers HTTP
 // ============================================================================
 
 // RespondSuccess envia resposta de sucesso em JSON
@@ -26,7 +26,7 @@ func RespondError(w http.ResponseWriter, message string, statusCode int) {
 	})
 }
 
-// RespondCreated envia resposta de criação bem-sucedida
+// RespondCreated envia resposta de criação bem-sucedida (201)
 func RespondCreated(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
