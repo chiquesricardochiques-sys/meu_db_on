@@ -1,204 +1,65 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"meu-provedor/config"
+
+	projectService "meu-provedor/services/project"
+	"meu-provedor/models"
 )
 
-/*
-========================
-STRUCTS
-========================
-*/
-
-// Projeto
-type ProjectRequest struct {
-	Name    string `json:"name"`
-	Code    string `json:"code"`
-	ApiKey  string `json:"api_key"`
-	Type    string `json:"type"`
-	Version string `json:"version"`
-	Status  string `json:"status"`
-}
-
-// Instância
-type InstanceRequest struct {
-	ProjectID   int64                  `json:"project_id"`
-	Name        string                 `json:"name"`
-	Code        string                 `json:"code"`
-	Description string                 `json:"description"`
-	Status      string                 `json:"status"`
-	Settings    map[string]interface{} `json:"settings"`
-}
-
-/*
-========================
-PROJETOS - CRUD
-========================
-*/
-
-// CREATE PROJECT
 func CreateProject(w http.ResponseWriter, r *http.Request) {
-	var req ProjectRequest
-	json.NewDecoder(r.Body).Decode(&req)
-
-	query := `INSERT INTO projects (name, code, api_key, type, version, status)
-	          VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := config.MasterDB.Exec(query, req.Name, req.Code, req.ApiKey, req.Type, req.Version, req.Status)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+	var req models.ProjectRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", 400)
 		return
 	}
 
-	w.Write([]byte("PROJECT CREATED"))
+	if err := projectService.Create(req); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "PROJECT CREATED",
+	})
 }
 
-// LIST PROJECTS
 func ListProjects(w http.ResponseWriter, r *http.Request) {
-	rows, err := config.MasterDB.Query(`SELECT id, name, code, type, version, status FROM projects`)
+	projects, err := projectService.List()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	defer rows.Close()
 
-	var result []map[string]interface{}
-	for rows.Next() {
-		var id int64
-		var name, code, ptype, version, status string
-		rows.Scan(&id, &name, &code, &ptype, &version, &status)
-		result = append(result, map[string]interface{}{
-			"id": id, "name": name, "code": code, "type": ptype, "version": version, "status": status,
-		})
-	}
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(projects)
 }
 
-// UPDATE PROJECT
 func UpdateProject(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-	var req ProjectRequest
+	id, _ := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
+
+	var req models.ProjectRequest
 	json.NewDecoder(r.Body).Decode(&req)
 
-	query := `UPDATE projects SET name=?, code=?, type=?, version=?, status=? WHERE id=?`
-	_, err := config.MasterDB.Exec(query, req.Name, req.Code, req.Type, req.Version, req.Status, id)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+	if err := projectService.Update(id, req); err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
+
 	w.Write([]byte("PROJECT UPDATED"))
 }
 
-// DELETE PROJECT
 func DeleteProject(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-	_, err := config.MasterDB.Exec("DELETE FROM projects WHERE id=?", id)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
+	id, _ := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
+
+	if err := projectService.Delete(id); err != nil {
+		http.Error(w, err.Error(), 400)
 		return
 	}
+
 	w.Write([]byte("PROJECT DELETED"))
 }
-
-/*
-========================
-INSTÂNCIAS - CRUD
-========================
-*/
-
-// CREATE INSTANCE
-func CreateInstance(w http.ResponseWriter, r *http.Request) {
-	var req InstanceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON body", 400)
-		return
-	}
-
-	settingsJSON, _ := json.Marshal(req.Settings)
-	query := `INSERT INTO instancias_projetion (project_id, name, code, description, status, settings) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := config.MasterDB.Exec(query, req.ProjectID, req.Name, req.Code, req.Description, req.Status, settingsJSON)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-
-	w.Write([]byte("INSTANCE CREATED"))
-}
-
-// LIST INSTANCES
-func ListInstances(w http.ResponseWriter, r *http.Request) {
-	projectIDStr := r.URL.Query().Get("project_id")
-	var rows *sql.Rows
-	var err error
-
-	if projectIDStr != "" {
-		projectID, convErr := strconv.Atoi(projectIDStr)
-		if convErr != nil {
-			http.Error(w, "Invalid project_id", 400)
-			return
-		}
-		rows, err = config.MasterDB.Query(`SELECT id, project_id, name, code, description, status, settings FROM instancias_projetion WHERE project_id=?`, projectID)
-	} else {
-		rows, err = config.MasterDB.Query(`SELECT id, project_id, name, code, description, status, settings FROM instancias_projetion`)
-	}
-
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	defer rows.Close()
-
-	var result []map[string]interface{}
-	for rows.Next() {
-		var id, projectID int64
-		var name, code, status string
-		var description sql.NullString
-		var settings []byte
-		rows.Scan(&id, &projectID, &name, &code, &description, &status, &settings)
-
-		var settingsMap map[string]interface{}
-		json.Unmarshal(settings, &settingsMap)
-
-		result = append(result, map[string]interface{}{
-			"id": id, "project_id": projectID, "name": name, "code": code, "description": description.String, "status": status, "settings": settingsMap,
-		})
-	}
-	json.NewEncoder(w).Encode(result)
-}
-
-// UPDATE INSTANCE
-func UpdateInstance(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-	var req InstanceRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON body", 400)
-		return
-	}
-
-	settingsJSON, _ := json.Marshal(req.Settings)
-	query := `UPDATE instancias_projetion SET name=?, code=?, description=?, status=?, settings=? WHERE id=?`
-	_, err := config.MasterDB.Exec(query, req.Name, req.Code, req.Description, req.Status, settingsJSON, id)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Write([]byte("INSTANCE UPDATED"))
-}
-
-// DELETE INSTANCE
-func DeleteInstance(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.Atoi(mux.Vars(r)["id"])
-	_, err := config.MasterDB.Exec("DELETE FROM instancias_projetion WHERE id=?", id)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	w.Write([]byte("INSTANCE DELETED"))
-}
-
-
