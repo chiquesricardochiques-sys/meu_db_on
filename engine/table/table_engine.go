@@ -2,7 +2,6 @@ package table
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -46,12 +45,12 @@ func CreateTable(projectCode string, req models.CreateTableRequest) (string, err
 
 	createSQL := fmt.Sprintf("CREATE TABLE %s (%s)", fullTableName, strings.Join(columns, ","))
 
-	_, err := config.Master.Exec(createSQL)
+	_, err := config.MasterDB.Exec(createSQL)
 	return fullTableName, err
 }
 
 func ListTables(projectCode string) ([]string, error) {
-	rows, err := config.Master.Query(`
+	rows, err := config.MasterDB.Query(`
 		SELECT table_name
 		FROM information_schema.tables
 		WHERE table_schema = DATABASE()
@@ -74,6 +73,7 @@ func ListTables(projectCode string) ([]string, error) {
 
 func DropTable(projectCode, table string) error {
 	fullTable := fmt.Sprintf("%s_%s", projectCode, table)
-	_, err := config.Master.Exec("DROP TABLE " + fullTable)
+	_, err := config.MasterDB.Exec("DROP TABLE " + fullTable)
 	return err
 }
+
