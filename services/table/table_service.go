@@ -1,189 +1,262 @@
 package table
 
 import (
-	"errors"
-	"regexp"
-
-	"meu-provedor/engine/table"
-	"meu-provedor/models"
-
 	"fmt"
 	"strings"
-
 	"meu-provedor/config"
-	
+	"meu-provedor/models"
 )
 
-var validName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+// ============================================================================
+// TABLE OPERATIONS
+// ============================================================================
 
-func validateName(name string) bool {
-	return validName.MatchString(name)
-}
-
+// Create cria uma nova tabela para o projeto
 func Create(projectCode string, req models.CreateTableRequest) (string, error) {
-	if !validateName(req.TableName) {
-		return "", errors.New("invalid table name")
+	fullTableName := fmt.Sprintf("%s_%s", projectCode, req.TableName)
+
+	columns := []string{
+		"id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY",
+		`id_instancia BIGINT UNSIGNED NOT NULL,
+		FOREIGN KEY (id_instancia)
+		REFERENCES instancias_projetion(id)
+		ON DELETE CASCADE`,
 	}
 
 	for _, col := range req.Columns {
-		if !validateName(col.Name) {
-			return "", errors.New("invalid column name: " + col.Name)
+		def := col.Name + " " + col.Type
+		if !col.Nullable {
+			def += " NOT NULL"
 		}
+		if col.Unique {
+			def += " UNIQUE"
+		}
+		columns = append(columns, def)
 	}
 
 	for _, idx := range req.Indexes {
-		if idx.Name != "" && !validateName(idx.Name) {
-			return "", errors.New("invalid index name: " + idx.Name)
+		idxDef := ""
+		if idx.Type == "UNIQUE" {
+			idxDef = fmt.Sprintf("UNIQUE KEY %s (%s)", idx.Name, strings.Join(idx.Columns, ","))
+		} else {
+			idxDef = fmt.Sprintf("INDEX %s (%s)", idx.Name, strings.Join(idx.Columns, ","))
 		}
-		for _, col := range idx.Columns {
-			if !validateName(col) {
-				return "", errors.New("invalid column in index: " + col)
-			}
-		}
+		columns = append(columns, idxDef)
 	}
 
-	return table.CreateTable(projectCode, req)
+	createSQL := fmt.Sprintf("CREATE TABLE %s (%s)", fullTableName, strings.Join(columns, ","))
+
+	_, err := config.MasterDB.Exec(createSQL)
+	return fullTableName, err
 }
 
+// List retorna todas as tabelas de um projeto
 func List(projectCode string) ([]string, error) {
-	return table.ListTables(projectCode)
-}
-
-func Delete(projectCode, tableName string) error {
-	if !validateName(tableName) {
-		return errors.New("invalid table name")
-	}
-	return table.DropTable(projectCode, tableName)
-}
-
-
-
-
-// Coluna/Índice compatível
-type ColumnRequest = models.ColumnRequest
-type IndexRequest = models.IndexRequest
-
-// GET TABLE DETAILS
-func GetDetails(projectCode, tableName string) (models.TableDetail, error) {
-	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
-
-	// pegar colunas
-	rows, err := config.MasterDB.Query(fmt.Sprintf("SHOW COLUMNS FROM %s", fullTable))
+	rows, err := config.MasterDB.Query(`
+		SELECT table_name
+		FROM information_schema.tables
+		WHERE table_schema = DATABASE()
+		AND table_name LIKE ?`, projectCode+"_%",
+	)
 	if err != nil {
-		return models.TableDetail{}, err
+		return nil, err
 	}
 	defer rows.Close()
 
-	var columns []models.ColumnDetail
+	var tables []string
 	for rows.Next() {
-		var col models.ColumnDetail
-		var extra, key, null, defaultVal, typeVal string
-		if err := rows.Scan(&col.Name, &typeVal, &null, &key, &defaultVal, &extra); err != nil {
-			return models.TableDetail{}, err
-		}
-		col.Type = typeVal
-		col.Nullable = null == "YES"
-		col.Key = key
-		col.Extra = extra
-		col.Default = defaultVal
-		columns = append(columns, col)
+		var fullName string
+		rows.Scan(&fullName)
+		displayName := strings.TrimPrefix(fullName, projectCode+"_")
+		tables = append(tables, displayName)
 	}
+	return tables, nil
+}
 
-	// pegar índices
-	idxRows, err := config.MasterDB.Query(fmt.Sprintf("SHOW INDEX FROM %s", fullTable))
+// Delete remove uma tabela
+func Delete(projectCode, table string) error {
+	fullTable := fmt.Sprintf("%s_%s", projectCode, table)
+	_, err := config.MasterDB.Exec("DROP TABLE " + fullTable)
+	return err
+}
+
+// GetDetails retorna detalhes completos de uma tabela
+func GetDetails(projectCode, tableName string) (*models.TableDetail, error) {
+	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
+
+	columns, err := getColumns(fullTable)
 	if err != nil {
-		return models.TableDetail{}, err
-	}
-	defer idxRows.Close()
-
-	idxMap := map[string]models.IndexDetail{}
-	for idxRows.Next() {
-		var table, nonUnique, keyName, seq, columnName, collation, cardinality, subPart, packed, nullVal, indexType, comment, indexComment string
-		if err := idxRows.Scan(&table, &nonUnique, &keyName, &seq, &columnName, &collation, &cardinality, &subPart, &packed, &nullVal, &indexType, &comment, &indexComment); err != nil {
-			continue
-		}
-
-		idx, ok := idxMap[keyName]
-		if !ok {
-			idx = models.IndexDetail{Name: keyName, Type: "INDEX"}
-			if nonUnique == "0" {
-				idx.Type = "UNIQUE"
-			}
-		}
-		idx.Columns = append(idx.Columns, columnName)
-		idxMap[keyName] = idx
+		return nil, err
 	}
 
-	var indexes []models.IndexDetail
-	for _, idx := range idxMap {
-		indexes = append(indexes, idx)
+	indexes, err := getIndexes(fullTable)
+	if err != nil {
+		return nil, err
 	}
 
-	return models.TableDetail{
+	return &models.TableDetail{
 		Name:    tableName,
 		Columns: columns,
 		Indexes: indexes,
 	}, nil
 }
 
-// ADD COLUMN
+// ============================================================================
+// COLUMN OPERATIONS
+// ============================================================================
+
+type ColumnRequest struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Nullable bool   `json:"nullable"`
+	Unique   bool   `json:"unique"`
+}
+
+// AddColumn adiciona uma nova coluna à tabela
 func AddColumn(projectCode, tableName string, col ColumnRequest) error {
-	if col.Name == "" || col.Type == "" {
-		return errors.New("invalid column")
-	}
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
-	sql := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", fullTable, col.Name, col.Type)
+	def := col.Name + " " + col.Type
 	if !col.Nullable {
-		sql += " NOT NULL"
+		def += " NOT NULL"
 	}
 	if col.Unique {
-		sql += " UNIQUE"
+		def += " UNIQUE"
 	}
-	_, err := config.MasterDB.Exec(sql)
+	query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", fullTable, def)
+	_, err := config.MasterDB.Exec(query)
 	return err
 }
 
-// MODIFY COLUMN
+// ModifyColumn modifica uma coluna existente
 func ModifyColumn(projectCode, tableName string, col ColumnRequest) error {
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
-	sql := fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s %s", fullTable, col.Name, col.Type)
+	def := col.Name + " " + col.Type
 	if !col.Nullable {
-		sql += " NOT NULL"
+		def += " NOT NULL"
 	}
-	if col.Unique {
-		sql += " UNIQUE"
-	}
-	_, err := config.MasterDB.Exec(sql)
+	query := fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s", fullTable, def)
+	_, err := config.MasterDB.Exec(query)
 	return err
 }
 
-// DROP COLUMN
+// DropColumn remove uma coluna
 func DropColumn(projectCode, tableName, columnName string) error {
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
-	_, err := config.MasterDB.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", fullTable, columnName))
+	query := fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", fullTable, columnName)
+	_, err := config.MasterDB.Exec(query)
 	return err
 }
 
-// ADD INDEX
+// ============================================================================
+// INDEX OPERATIONS
+// ============================================================================
+
+type IndexRequest struct {
+	Name    string   `json:"name"`
+	Columns []string `json:"columns"`
+	Type    string   `json:"type"`
+}
+
+// AddIndex adiciona um novo índice
 func AddIndex(projectCode, tableName string, idx IndexRequest) error {
-	if idx.Name == "" || len(idx.Columns) == 0 {
-		return errors.New("invalid index")
-	}
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
-	var sql string
-	if strings.ToUpper(idx.Type) == "UNIQUE" {
-		sql = fmt.Sprintf("ALTER TABLE %s ADD UNIQUE INDEX %s (%s)", fullTable, idx.Name, strings.Join(idx.Columns, ","))
+	var query string
+	if idx.Type == "UNIQUE" {
+		query = fmt.Sprintf("ALTER TABLE %s ADD UNIQUE INDEX %s (%s)",
+			fullTable, idx.Name, strings.Join(idx.Columns, ","))
 	} else {
-		sql = fmt.Sprintf("ALTER TABLE %s ADD INDEX %s (%s)", fullTable, idx.Name, strings.Join(idx.Columns, ","))
+		query = fmt.Sprintf("ALTER TABLE %s ADD INDEX %s (%s)",
+			fullTable, idx.Name, strings.Join(idx.Columns, ","))
 	}
-	_, err := config.MasterDB.Exec(sql)
+	_, err := config.MasterDB.Exec(query)
 	return err
 }
 
-// DROP INDEX
+// DropIndex remove um índice
 func DropIndex(projectCode, tableName, indexName string) error {
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
-	_, err := config.MasterDB.Exec(fmt.Sprintf("ALTER TABLE %s DROP INDEX %s", fullTable, indexName))
+	query := fmt.Sprintf("ALTER TABLE %s DROP INDEX %s", fullTable, indexName)
+	_, err := config.MasterDB.Exec(query)
 	return err
 }
 
+// ============================================================================
+// INTERNAL HELPERS
+// ============================================================================
+
+func getColumns(fullTable string) ([]models.ColumnDetail, error) {
+	rows, err := config.MasterDB.Query(`
+		SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, COLUMN_KEY, EXTRA
+		FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+		ORDER BY ORDINAL_POSITION`, fullTable,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var columns []models.ColumnDetail
+	for rows.Next() {
+		var col models.ColumnDetail
+		var isNullable, colDefault, colKey, extra sql.NullString
+		
+		err := rows.Scan(&col.Name, &col.Type, &isNullable, &colDefault, &colKey, &extra)
+		if err != nil {
+			continue
+		}
+
+		col.Nullable = (isNullable.String == "YES")
+		if colDefault.Valid {
+			col.Default = colDefault.String
+		}
+		col.Key = colKey.String
+		col.Extra = extra.String
+
+		columns = append(columns, col)
+	}
+	return columns, nil
+}
+
+func getIndexes(fullTable string) ([]models.IndexDetail, error) {
+	rows, err := config.MasterDB.Query(`
+		SELECT INDEX_NAME, COLUMN_NAME, NON_UNIQUE
+		FROM information_schema.STATISTICS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+		ORDER BY INDEX_NAME, SEQ_IN_INDEX`, fullTable,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	indexMap := make(map[string]*models.IndexDetail)
+	for rows.Next() {
+		var name, column string
+		var nonUnique int
+		
+		err := rows.Scan(&name, &column, &nonUnique)
+		if err != nil {
+			continue
+		}
+
+		if _, exists := indexMap[name]; !exists {
+			idxType := "INDEX"
+			if nonUnique == 0 {
+				idxType = "UNIQUE"
+			}
+			indexMap[name] = &models.IndexDetail{
+				Name:    name,
+				Columns: []string{},
+				Type:    idxType,
+			}
+		}
+		indexMap[name].Columns = append(indexMap[name].Columns, column)
+	}
+
+	var indexes []models.IndexDetail
+	for _, idx := range indexMap {
+		indexes = append(indexes, *idx)
+	}
+	return indexes, nil
+}
