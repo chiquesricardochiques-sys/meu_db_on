@@ -1,6 +1,10 @@
-// services/project/project_service.go
 package project
-
+import (
+	
+	
+	"meu-provedor/engine/project"
+	"meu-provedor/models"
+)
 func Create(req models.ProjectRequest) error {
     // validação de negócio
     if req.Code == "" {
@@ -8,10 +12,11 @@ func Create(req models.ProjectRequest) error {
     }
 
     // regra: code é único?
-    exists, _ := engine.ProjectCodeExists(req.Code)
+    exists, _ :=  project.ProjectCodeExists(req.Code)
     if exists {
         return errors.New("project code já existe")
     }
 
-    return engine.InsertProject(req)
+    return project.InsertProject(req)
 }
+
