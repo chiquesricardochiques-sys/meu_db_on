@@ -136,6 +136,17 @@ func RowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
 	return results, nil
 }
 
+func GetProjectByID(projectID int) (*Project, error) {
+    var project Project
+    query := "SELECT id, name, prefix, api_key FROM projects WHERE id = ? LIMIT 1"
+    row := MasterDB.QueryRow(query, projectID)
+    err := row.Scan(&project.ID, &project.Name, &project.Prefix, &project.ApiKey)
+    if err != nil {
+        return nil, err
+    }
+    return &project, nil
+}
+
 // GetProjectCodeByID retorna o prefixo de um projeto dado seu ID
 func GetProjectCodeByID(projectID int) (string, error) {
     var project Project
@@ -156,4 +167,5 @@ func CloseDB() error {
 	return nil
 
 }
+
 
