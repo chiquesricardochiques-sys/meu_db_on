@@ -11,7 +11,7 @@ import (
 func InsertInstance(req models.InstanceRequest) error {
 	settingsJSON, _ := json.Marshal(req.Settings)
 
-	_, err := config.Master.Exec(`
+	_, err := config.MasterDB.Exec(`
 		INSERT INTO instancias_projetion
 		(project_id, name, code, description, status, settings)
 		VALUES (?, ?, ?, ?, ?, ?)`,
@@ -33,7 +33,7 @@ func ListInstances(projectID *int64) ([]models.Instance, error) {
 	)
 
 	if projectID != nil {
-		rows, err = config.Master.Query(`
+		rows, err = config.MasterDB.Query(`
 			SELECT id, project_id, name, code, description, status, settings, created_at
 			FROM instancias_projetion
 			WHERE project_id = ?`,
@@ -80,7 +80,7 @@ func ListInstances(projectID *int64) ([]models.Instance, error) {
 func UpdateInstance(id int64, req models.InstanceRequest) error {
 	settingsJSON, _ := json.Marshal(req.Settings)
 
-	_, err := config.Master.Exec(`
+	_, err := config.MasterDB.Exec(`
 		UPDATE instancias_projetion
 		SET name=?, code=?, description=?, status=?, settings=?
 		WHERE id=?`,
@@ -96,9 +96,10 @@ func UpdateInstance(id int64, req models.InstanceRequest) error {
 }
 
 func DeleteInstance(id int64) error {
-	_, err := config.Master.Exec(
+	_, err := config.MasterDB.Exec(
 		`DELETE FROM instancias_projetion WHERE id=?`,
 		id,
 	)
 	return err
 }
+
