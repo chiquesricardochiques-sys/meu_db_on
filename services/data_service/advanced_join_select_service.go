@@ -16,16 +16,13 @@ EXECUTOR – ADVANCED JOIN SELECT
 
 func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[string]interface{}, error) {
 	// resolve projeto
-	projectCode, err := config.GetProjectCodeByID(int(req.ProjectID))  // Atualizando para função exportada
+	project, err := config.GetProjectByID(int(req.ProjectID)) // retorna *config.Project
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("falha ao buscar projeto: %w", err)
 	}
 
 	// tabela base com prefixo
-	baseTable := config.BuildTableName(projectCode, req.Base.Table) // Atualizando para função exportada
-	if err != nil {
-		return nil, err
-	}
+	baseTable := config.BuildTableName(project, req.Base.Table)
 
 	builder := query.NewJoinSelect(baseTable, req.Base.Alias)
 
@@ -36,10 +33,7 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 
 	// JOINS
 	for _, j := range req.Joins {
-		joinTable, err := config.BuildTableName(projectCode, j.Table)  // Atualizando para função exportada
-		if err != nil {
-			return nil, err
-		}
+		joinTable := config.BuildTableName(project, j.Table)
 
 		builder.AddJoin(query.JoinConfig{
 			Type:    j.Type,
@@ -59,7 +53,6 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 	if baseAlias == "" {
 		baseAlias = baseTable
 	}
-
 	builder.AddWhere(fmt.Sprintf("%s.id_instancia = ?", baseAlias), req.InstanceID)
 
 	// WHERE simples
@@ -84,10 +77,9 @@ func ExecuteAdvancedJoinSelect(req models.AdvancedJoinSelectRequest) ([]map[stri
 
 	rows, err := config.MasterDB.Query(sqlQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("erro ao executar query: %w", err)
 	}
 	defer rows.Close()
 
-	return config.RowsToMap(rows)  // Atualizando para função exportada
+	return config.RowsToMap(rows), nil
 }
-
