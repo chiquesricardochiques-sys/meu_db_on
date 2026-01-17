@@ -40,7 +40,7 @@ func ListInstances(projectID *int64) ([]models.Instance, error) {
 			*projectID,
 		)
 	} else {
-		rows, err = config.Master.Query(`
+		rows, err = config.MasterDB.Query(`
 			SELECT id, project_id, name, code, description, status, settings, created_at
 			FROM instancias_projetion`,
 		)
@@ -102,4 +102,5 @@ func DeleteInstance(id int64) error {
 	)
 	return err
 }
+
 
