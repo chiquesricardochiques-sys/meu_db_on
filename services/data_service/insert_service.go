@@ -63,7 +63,8 @@ func ExecuteInsert(req models.InsertRequest) (int64, error) {
 	sqlQuery, args := builder.Build()
 	result, err := config.MasterDB.Exec(sqlQuery, args...)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", models.ErrInsertFailed, err)
+		return 0, fmt.Errorf("%w: %s", models.ErrInsertFailed, err.Error())
+
 	}
 
 	// Retornar ID inserido
@@ -140,4 +141,5 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 	}
 
 	return len(req.Data), nil
+
 }
