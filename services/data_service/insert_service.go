@@ -1,81 +1,149 @@
-package query
+package services
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"meu-provedor/config"
+	"meu-provedor/engine/query"
+	"meu-provedor/models"
 )
 
-// ============================================================================
-// PLACEHOLDER BUILDER - MySQL
-// ============================================================================
-
-// BuildPlaceholders gera placeholders MySQL (?, ?, ?)
-func BuildPlaceholders(count int) string {
-	placeholders := make([]string, count)
-	for i := 0; i < count; i++ {
-		placeholders[i] = "?" // MySQL usa ?
+// ExecuteInsert executa um INSERT único
+func ExecuteInsert(req models.InsertRequest) (int64, error) {
+	// Validar requisição
+	if req.ProjectID <= 0 {
+		return 0, models.ErrInvalidProjectID
 	}
-	return "(" + strings.Join(placeholders, ",") + ")"
-}
-
-// ============================================================================
-// INSERT BUILDER
-// ============================================================================
-
-type InsertBuilder struct {
-	Table   string
-	Columns []string
-	Values  [][]interface{}
-}
-
-func NewInsert(table string, columns []string) *InsertBuilder {
-	return &InsertBuilder{
-		Table:   table,
-		Columns: columns,
-		Values:  [][]interface{}{},
+	if req.InstanceID <= 0 {
+		return 0, models.ErrInvalidInstanceID
 	}
-}
-
-func (b *InsertBuilder) AddRow(row []interface{}) *InsertBuilder {
-	b.Values = append(b.Values, row)
-	return b
-}
-
-// Build gera query MySQL com placeholders ?
-func (b *InsertBuilder) Build() (string, []interface{}) {
-	var allPlaceholders []string
-	var allValues []interface{}
-
-	for _, row := range b.Values {
-		// Criar placeholders: (?, ?, ?)
-		placeholders := BuildPlaceholders(len(b.Columns))
-		allPlaceholders = append(allPlaceholders, placeholders)
-		allValues = append(allValues, row...)
+	if req.Table == "" {
+		return 0, models.ErrTableRequired
+	}
+	if len(req.Data) == 0 {
+		return 0, models.ErrNoDataProvided
 	}
 
-	query := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES %s",
-		b.Table,
-		strings.Join(b.Columns, ","),
-		strings.Join(allPlaceholders, ","),
-	)
+	// Obter código do projeto
+	projectCode, err := GetProjectCodeByID(req.ProjectID)
+	if err != nil {
+		return 0, err
+	}
 
-	return query, allValues
+	// ✅ Manter a construção do nome da tabela como estava
+	// Exemplo: "salao_beleza" + "_" + "profissionais" = "salao_beleza_profissionais"
+	table := fmt.Sprintf("%s_%s", projectCode, req.Table)
+
+	// Adicionar id_instancia aos dados
+	req.Data["id_instancia"] = req.InstanceID
+
+	// Extrair colunas em ordem fixa (alfabética)
+	var cols []string
+	for col := range req.Data {
+		if !query.IsValidColumnName(col) {
+			return 0, fmt.Errorf("%w: %s", models.ErrInvalidColumn, col)
+		}
+		cols = append(cols, col)
+	}
+	sort.Strings(cols)
+
+	// Extrair valores na mesma ordem das colunas
+	var vals []interface{}
+	for _, col := range cols {
+		vals = append(vals, req.Data[col])
+	}
+
+	// Criar InsertBuilder
+	builder := query.NewInsert(table, cols)
+	builder.AddRow(vals)
+
+	// Executar INSERT
+	sqlQuery, args := builder.Build()
+	
+	fmt.Printf("📝 SQL: %s\n", sqlQuery)
+	fmt.Printf("📊 Args: %v\n", args)
+	
+	result, err := config.MasterDB.Exec(sqlQuery, args...)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s", models.ErrInsertFailed, err.Error())
+	}
+
+	lastID, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	return lastID, nil
 }
 
-// ============================================================================
-// VALIDAÇÃO
-// ============================================================================
-
-func IsValidColumnName(col string) bool {
-	if col == "" || len(col) > 64 {
-		return false
+// ExecuteBatchInsert executa múltiplos INSERTs em lote
+func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
+	if err := req.Validate(); err != nil {
+		return 0, err
 	}
-	for _, c := range col {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || 
-		     (c >= '0' && c <= '9') || c == '_') {
-			return false
+
+	projectCode, err := GetProjectCodeByID(req.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+
+	// ✅ Manter a construção do nome da tabela como estava
+	table := fmt.Sprintf("%s_%s", projectCode, req.Table)
+
+	// Coletar todas as colunas únicas
+	colsMap := make(map[string]bool)
+	for _, row := range req.Data {
+		for k := range row {
+			colsMap[k] = true
 		}
 	}
-	return true
+	colsMap["id_instancia"] = true
+
+	// Converter para slice e ordenar
+	var cols []string
+	for col := range colsMap {
+		if !query.IsValidColumnName(col) {
+			return 0, fmt.Errorf("%w: %s", models.ErrInvalidColumn, col)
+		}
+		cols = append(cols, col)
+	}
+	sort.Strings(cols)
+
+	// ✅ ÚNICA MUDANÇA: MySQL usa ? ao invés de $1, $2, $3
+	var valuePlaceholders []string
+	var allValues []interface{}
+
+	for _, row := range req.Data {
+		row["id_instancia"] = req.InstanceID
+
+		// Gerar placeholders MySQL: (?, ?, ?)
+		var rowPlaceholders []string
+		for range cols {
+			rowPlaceholders = append(rowPlaceholders, "?") // ✅ MySQL
+		}
+		valuePlaceholders = append(valuePlaceholders, "("+strings.Join(rowPlaceholders, ",")+")")
+
+		// Adicionar valores na ordem das colunas
+		for _, col := range cols {
+			allValues = append(allValues, row[col])
+		}
+	}
+
+	queryStr := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
+		table,
+		strings.Join(cols, ","),
+		strings.Join(valuePlaceholders, ","),
+	)
+
+	fmt.Printf("📝 BATCH SQL: %s\n", queryStr)
+	fmt.Printf("📊 BATCH Args: %v\n", allValues)
+
+	_, err = config.MasterDB.Exec(queryStr, allValues...)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", models.ErrInsertFailed, err)
+	}
+
+	return len(req.Data), nil
 }
