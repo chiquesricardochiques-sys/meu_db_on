@@ -147,3 +147,58 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 
 	return len(req.Data), nil
 }
+//  depurar codigo
+type SQLDebugResult struct {
+    Query string        `json:"query"`
+    Args  []interface{} `json:"args"`
+}
+
+func ExecuteInsertDebug(req models.InsertRequest) (*SQLDebugResult, error) {
+    // --- mesmo processo de validação e construção ---
+    if req.ProjectID <= 0 {
+        return nil, models.ErrInvalidProjectID
+    }
+    if req.InstanceID <= 0 {
+        return nil, models.ErrInvalidInstanceID
+    }
+    if req.Table == "" {
+        return nil, models.ErrTableRequired
+    }
+    if len(req.Data) == 0 {
+        return nil, models.ErrNoDataProvided
+    }
+
+    projectCode, err := GetProjectCodeByID(req.ProjectID)
+    if err != nil {
+        return nil, err
+    }
+
+    table := fmt.Sprintf("%s_%s", projectCode, req.Table)
+    req.Data["id_instancia"] = req.InstanceID
+
+    var cols []string
+    for col := range req.Data {
+        if !query.IsValidColumnName(col) {
+            return nil, fmt.Errorf("%w: %s", models.ErrInvalidColumn, col)
+        }
+        cols = append(cols, col)
+    }
+    sort.Strings(cols)
+
+    var vals []interface{}
+    for _, col := range cols {
+        vals = append(vals, req.Data[col])
+    }
+
+    builder := query.NewInsert(table, cols)
+    builder.AddRow(vals)
+
+    sqlQuery, args := builder.Build()
+
+    // --- AO INVÉS DE EXECUTAR, RETORNAR ---
+    return &SQLDebugResult{
+        Query: sqlQuery,
+        Args:  args,
+    }, nil
+}
+
