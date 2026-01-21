@@ -13,7 +13,7 @@ import (
 func BuildPlaceholders(count int) string {
 	placeholders := make([]string, count)
 	for i := 0; i < count; i++ {
-		placeholders[i] = "?" // MySQL usa ?
+		placeholders[i] = "?" // ✅ Correto para MySQL
 	}
 	return "(" + strings.Join(placeholders, ",") + ")"
 }
@@ -79,3 +79,4 @@ func IsValidColumnName(col string) bool {
 	}
 	return true
 }
+
