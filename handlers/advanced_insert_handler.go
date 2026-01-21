@@ -70,7 +70,14 @@ func InsertDebugHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     debugResult := services.ExecuteInsertDebug(req)
-    return debugResult
+
+    status := http.StatusOK
+    if !debugResult.Ok {
+        status = http.StatusBadRequest
+    }
+
+    RespondJSON(w, status, debugResult)
 }
+
 
 
