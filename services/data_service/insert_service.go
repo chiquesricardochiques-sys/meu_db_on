@@ -149,56 +149,101 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 }
 //  depurar codigo
 type SQLDebugResult struct {
-    Query string        `json:"query"`
-    Args  []interface{} `json:"args"`
+    Ok     bool          `json:"ok"`
+    Stage  string        `json:"stage"`
+    SQL    string        `json:"sql,omitempty"`
+    Args   []interface{} `json:"args,omitempty"`
+    Error  string        `json:"error,omitempty"`
+    Debug  interface{}   `json:"debug,omitempty"`
 }
 
-func ExecuteInsertDebug(req models.InsertRequest) (*SQLDebugResult, error) {
-    // --- mesmo processo de validação e construção ---
+func ExecuteInsertDebug(req models.InsertRequest) *SQLDebugResult {
+
+    // STAGE 1 — validação básica
     if req.ProjectID <= 0 {
-        return nil, models.ErrInvalidProjectID
-    }
-    if req.InstanceID <= 0 {
-        return nil, models.ErrInvalidInstanceID
-    }
-    if req.Table == "" {
-        return nil, models.ErrTableRequired
-    }
-    if len(req.Data) == 0 {
-        return nil, models.ErrNoDataProvided
+        return &SQLDebugResult{
+            Ok:    false,
+            Stage: "validate_project_id",
+            Error: "project_id inválido",
+            Debug: req.ProjectID,
+        }
     }
 
+    if req.InstanceID <= 0 {
+        return &SQLDebugResult{
+            Ok:    false,
+            Stage: "validate_instance_id",
+            Error: "id_instancia inválido",
+            Debug: req.InstanceID,
+        }
+    }
+
+    if req.Table == "" {
+        return &SQLDebugResult{
+            Ok:    false,
+            Stage: "validate_table",
+            Error: "table é obrigatória",
+        }
+    }
+
+    if len(req.Data) == 0 {
+        return &SQLDebugResult{
+            Ok:    false,
+            Stage: "validate_data",
+            Error: "data está vazia",
+        }
+    }
+
+    // STAGE 2 — buscar projeto
     projectCode, err := GetProjectCodeByID(req.ProjectID)
     if err != nil {
-        return nil, err
+        return &SQLDebugResult{
+            Ok:    false,
+            Stage: "get_project_code",
+            Error: err.Error(),
+            Debug: req.ProjectID,
+        }
     }
 
+    // STAGE 3 — montar tabela
     table := fmt.Sprintf("%s_%s", projectCode, req.Table)
     req.Data["id_instancia"] = req.InstanceID
 
+    // STAGE 4 — validar colunas
     var cols []string
     for col := range req.Data {
         if !query.IsValidColumnName(col) {
-            return nil, fmt.Errorf("%w: %s", models.ErrInvalidColumn, col)
+            return &SQLDebugResult{
+                Ok:    false,
+                Stage: "validate_column",
+                Error: "coluna inválida",
+                Debug: col,
+            }
         }
         cols = append(cols, col)
     }
     sort.Strings(cols)
 
+    // STAGE 5 — extrair valores
     var vals []interface{}
     for _, col := range cols {
         vals = append(vals, req.Data[col])
     }
 
+    // STAGE 6 — build SQL
     builder := query.NewInsert(table, cols)
     builder.AddRow(vals)
 
     sqlQuery, args := builder.Build()
 
-    // --- AO INVÉS DE EXECUTAR, RETORNAR ---
+    // STAGE FINAL — sucesso
     return &SQLDebugResult{
-        Query: sqlQuery,
+        Ok:    true,
+        Stage: "build_sql",
+        SQL:   sqlQuery,
         Args:  args,
-    }, nil
+    }
 }
+
+
 
