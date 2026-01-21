@@ -69,17 +69,8 @@ func InsertDebugHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    debugResult, err := services.ExecuteInsertDebug(req)
-    if err != nil {
-        RespondError(w, err.Error(), http.StatusBadRequest)
-        return
-    }
-
-    // Retorna SQL + args para o Node logar
-    RespondSuccess(w, map[string]interface{}{
-        "success": true,
-        "sql":     debugResult.Query,
-        "args":    debugResult.Args,
-    })
+    debugResult := services.ExecuteInsertDebug(req)
+    return debugResult
 }
+
 
