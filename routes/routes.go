@@ -33,8 +33,8 @@ func SetupRouter() *mux.Router {
 	protected.HandleFunc("/data/join-select", handlers.AdvancedJoinSelectHandler).Methods("POST")
 
 	// INSERT
-	//protected.HandleFunc("/data/insert", handlers.InsertHandler).Methods("POST")
-	protected.HandleFunc("/data/insert", handlers.InsertDebugHandler).Methods("POST")
+	protected.HandleFunc("/data/insert", handlers.InsertHandler).Methods("POST")
+	protected.HandleFunc("/data/insert-debug", handlers.InsertDebugHandler).Methods("POST")
 	protected.HandleFunc("/data/batch-insert", handlers.BatchInsertHandler).Methods("POST")
 
 	// UPDATE
@@ -111,4 +111,5 @@ func StartServer(port string) {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
 }
+
 
