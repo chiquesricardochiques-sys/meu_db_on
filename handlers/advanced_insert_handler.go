@@ -60,3 +60,26 @@ func BatchInsertHandler(w http.ResponseWriter, r *http.Request) {
 		"count":   count,
 	})
 }
+// depurar
+func InsertDebugHandler(w http.ResponseWriter, r *http.Request) {
+    var req models.InsertRequest
+
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        RespondError(w, "JSON inválido", http.StatusBadRequest)
+        return
+    }
+
+    debugResult, err := services.ExecuteInsertDebug(req)
+    if err != nil {
+        RespondError(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+    // Retorna SQL + args para o Node logar
+    RespondSuccess(w, map[string]interface{}{
+        "success": true,
+        "sql":     debugResult.Query,
+        "args":    debugResult.Args,
+    })
+}
+
