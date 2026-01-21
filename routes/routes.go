@@ -28,12 +28,13 @@ func SetupRouter() *mux.Router {
 	// DATA ENGINE ROUTES
 	// ========================================
 
-	// SELECT
+	// SELECT InsertDebugHandler
 	protected.HandleFunc("/data/select", handlers.AdvancedSelectHandler).Methods("POST")
 	protected.HandleFunc("/data/join-select", handlers.AdvancedJoinSelectHandler).Methods("POST")
 
 	// INSERT
-	protected.HandleFunc("/data/insert", handlers.InsertHandler).Methods("POST")
+	//protected.HandleFunc("/data/insert", handlers.InsertHandler).Methods("POST")
+	protected.HandleFunc("/data/insert", handlers.InsertDebugHandler).Methods("POST")
 	protected.HandleFunc("/data/batch-insert", handlers.BatchInsertHandler).Methods("POST")
 
 	// UPDATE
@@ -110,3 +111,4 @@ func StartServer(port string) {
 		log.Fatal("❌ Erro ao iniciar servidor:", err)
 	}
 }
+
