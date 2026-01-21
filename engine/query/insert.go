@@ -6,17 +6,28 @@ import (
 )
 
 // ============================================================================
+// PLACEHOLDER BUILDER - MySQL
+// ============================================================================
+
+// BuildPlaceholders gera placeholders MySQL (?, ?, ?)
+func BuildPlaceholders(count int) string {
+	placeholders := make([]string, count)
+	for i := 0; i < count; i++ {
+		placeholders[i] = "?" // MySQL usa ?
+	}
+	return "(" + strings.Join(placeholders, ",") + ")"
+}
+
+// ============================================================================
 // INSERT BUILDER
 // ============================================================================
 
-// InsertBuilder constrói queries INSERT
 type InsertBuilder struct {
 	Table   string
 	Columns []string
 	Values  [][]interface{}
 }
 
-// NewInsert cria um novo InsertBuilder
 func NewInsert(table string, columns []string) *InsertBuilder {
 	return &InsertBuilder{
 		Table:   table,
@@ -25,20 +36,19 @@ func NewInsert(table string, columns []string) *InsertBuilder {
 	}
 }
 
-// AddRow adiciona uma linha de valores
 func (b *InsertBuilder) AddRow(row []interface{}) *InsertBuilder {
 	b.Values = append(b.Values, row)
 	return b
 }
 
-// Build gera a query SQL final e retorna valores achatados
+// Build gera query MySQL com placeholders ?
 func (b *InsertBuilder) Build() (string, []interface{}) {
-	placeholders := BuildPlaceholders(len(b.Columns))
-	
 	var allPlaceholders []string
 	var allValues []interface{}
 
 	for _, row := range b.Values {
+		// Criar placeholders: (?, ?, ?)
+		placeholders := BuildPlaceholders(len(b.Columns))
 		allPlaceholders = append(allPlaceholders, placeholders)
 		allValues = append(allValues, row...)
 	}
@@ -51,4 +61,21 @@ func (b *InsertBuilder) Build() (string, []interface{}) {
 	)
 
 	return query, allValues
+}
+
+// ============================================================================
+// VALIDAÇÃO
+// ============================================================================
+
+func IsValidColumnName(col string) bool {
+	if col == "" || len(col) > 64 {
+		return false
+	}
+	for _, c := range col {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || 
+		     (c >= '0' && c <= '9') || c == '_') {
+			return false
+		}
+	}
+	return true
 }
