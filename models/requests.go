@@ -1,4 +1,114 @@
 package models
+import "errors"
+
+// Column representa uma coluna com seu valor
+type Column struct {
+	Name  string      `json:"name"`
+	Value interface{} `json:"value"`
+}
+
+// InsertRequest - Requisição refatorada com especificação clara
+type InsertRequest struct {
+	ProjectID  int64    `json:"project_id"`
+	InstanceID int64    `json:"id_instancia"`
+	Table      string   `json:"table"`
+	Columns    []Column `json:"columns"` // ✅ Agora é explícito: nome + valor
+}
+
+// BatchInsertRequest - Múltiplos inserts com mesma estrutura
+type BatchInsertRequest struct {
+	ProjectID  int64      `json:"project_id"`
+	InstanceID int64      `json:"id_instancia"`
+	Table      string     `json:"table"`
+	Rows       [][]Column `json:"rows"` // ✅ Array de rows, cada row tem suas colunas
+}
+
+// Validate valida InsertRequest
+func (r *InsertRequest) Validate() error {
+	if r.ProjectID <= 0 {
+		return errors.New("project_id inválido")
+	}
+	if r.InstanceID <= 0 {
+		return errors.New("id_instancia inválido")
+	}
+	if r.Table == "" {
+		return errors.New("table é obrigatória")
+	}
+	if len(r.Columns) == 0 {
+		return errors.New("nenhuma coluna fornecida")
+	}
+	
+	// Validar nomes das colunas
+	for _, col := range r.Columns {
+		if col.Name == "" {
+			return errors.New("coluna com nome vazio")
+		}
+		if !IsValidColumnName(col.Name) {
+			return errors.New("nome de coluna inválido: " + col.Name)
+		}
+	}
+	
+	return nil
+}
+
+// Validate valida BatchInsertRequest
+func (r *BatchInsertRequest) Validate() error {
+	if r.ProjectID <= 0 {
+		return errors.New("project_id inválido")
+	}
+	if r.InstanceID <= 0 {
+		return errors.New("id_instancia inválido")
+	}
+	if r.Table == "" {
+		return errors.New("table é obrigatória")
+	}
+	if len(r.Rows) == 0 {
+		return errors.New("nenhuma linha fornecida")
+	}
+	
+	// Validar estrutura de cada row
+	firstRowLen := len(r.Rows[0])
+	for i, row := range r.Rows {
+		if len(row) == 0 {
+			return errors.New("linha vazia")
+		}
+		if len(row) != firstRowLen {
+			return errors.New("linhas com número diferente de colunas")
+		}
+		
+		// Validar cada coluna
+		for _, col := range row {
+			if col.Name == "" {
+				return errors.New("coluna com nome vazio na linha " + string(rune(i)))
+			}
+			if !IsValidColumnName(col.Name) {
+				return errors.New("nome de coluna inválido: " + col.Name)
+			}
+		}
+	}
+	
+	return nil
+}
+
+// IsValidColumnName valida nome de coluna
+func IsValidColumnName(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	
+	// Aceita: letras, números, underscore
+	for _, char := range name {
+		if !((char >= 'a' && char <= 'z') || 
+			(char >= 'A' && char <= 'Z') || 
+			(char >= '0' && char <= '9') || 
+			char == '_') {
+			return false
+		}
+	}
+	
+	return true
+}
+
 
 // ============================================================================
 // REQUEST MODELS - Estruturas de requisição HTTP
@@ -70,21 +180,7 @@ type JoinItem struct {
 	Columns []string `json:"columns,omitempty"`
 }
 
-// InsertRequest - Requisição para INSERT único
-type InsertRequest struct {
-	ProjectID  int64                  `json:"project_id"`
-	InstanceID int64                  `json:"id_instancia"`
-	Table      string                 `json:"table"`
-	Data       map[string]interface{} `json:"data"`
-}
 
-// BatchInsertRequest - Requisição para INSERT em lote
-type BatchInsertRequest struct {
-	ProjectID  int64                    `json:"project_id"`
-	InstanceID int64                    `json:"id_instancia"`
-	Table      string                   `json:"table"`
-	Data       []map[string]interface{} `json:"data"`
-}
 
 // UpdateRequest - Requisição para UPDATE
 type UpdateRequest struct {
@@ -152,22 +248,7 @@ func (r *AdvancedSelectRequest) Validate() error {
 	return nil
 }
 
-// Validate - Valida BatchInsertRequest
-func (r *BatchInsertRequest) Validate() error {
-	if r.ProjectID <= 0 {
-		return ErrInvalidProjectID
-	}
-	if r.InstanceID <= 0 {
-		return ErrInvalidInstanceID
-	}
-	if r.Table == "" {
-		return ErrTableRequired
-	}
-	if len(r.Data) == 0 {
-		return ErrNoDataProvided
-	}
-	return nil
-}
+
 
 // Validate - Valida UpdateRequest
 func (r *UpdateRequest) Validate() error {
@@ -201,4 +282,5 @@ func (r *AggregateRequest) Validate() error {
 		return ErrOperationRequired
 	}
 	return nil
+
 }
