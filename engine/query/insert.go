@@ -9,14 +9,6 @@ import (
 // PLACEHOLDER BUILDER - MySQL
 // ============================================================================
 
-// BuildPlaceholders gera placeholders MySQL (?, ?, ?)
-func BuildPlaceholders(count int) string {
-	placeholders := make([]string, count)
-	for i := 0; i < count; i++ {
-		placeholders[i] = "?" // ✅ Correto para MySQL
-	}
-	return "(" + strings.Join(placeholders, ",") + ")"
-}
 
 // ============================================================================
 // INSERT BUILDER
@@ -79,4 +71,5 @@ func IsValidColumnName(col string) bool {
 	}
 	return true
 }
+
 
