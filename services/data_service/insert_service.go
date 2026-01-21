@@ -40,7 +40,7 @@ func ExecuteInsert(req models.InsertRequest) (int64, error) {
 	// Adicionar id_instancia aos dados
 	req.Data["id_instancia"] = req.InstanceID
 
-	// ✅ FIX: Extrair colunas em ordem FIXA (sorted)
+	// Extrair colunas em ordem fixa (alfabética)
 	var cols []string
 	for col := range req.Data {
 		if !query.IsValidColumnName(col) {
@@ -48,11 +48,9 @@ func ExecuteInsert(req models.InsertRequest) (int64, error) {
 		}
 		cols = append(cols, col)
 	}
-	
-	// ✅ CRÍTICO: Ordenar colunas alfabeticamente
 	sort.Strings(cols)
 
-	// ✅ Extrair valores NA MESMA ORDEM das colunas
+	// Extrair valores na mesma ordem das colunas
 	var vals []interface{}
 	for _, col := range cols {
 		vals = append(vals, req.Data[col])
@@ -65,15 +63,14 @@ func ExecuteInsert(req models.InsertRequest) (int64, error) {
 	// Executar INSERT
 	sqlQuery, args := builder.Build()
 	
-	// DEBUG (remover em produção)
-	fmt.Printf("SQL: %s\nArgs: %v\n", sqlQuery, args)
+	fmt.Printf("📝 SQL: %s\n", sqlQuery)
+	fmt.Printf("📊 Args: %v\n", args)
 	
 	result, err := config.MasterDB.Exec(sqlQuery, args...)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s", models.ErrInsertFailed, err.Error())
 	}
 
-	// Retornar ID inserido
 	lastID, err := result.LastInsertId()
 	if err != nil {
 		return 0, err
@@ -84,24 +81,21 @@ func ExecuteInsert(req models.InsertRequest) (int64, error) {
 
 // ExecuteBatchInsert executa múltiplos INSERTs em lote
 func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
-	// Validar requisição
 	if err := req.Validate(); err != nil {
 		return 0, err
 	}
 
-	// Obter código do projeto
 	projectCode, err := GetProjectCodeByID(req.ProjectID)
 	if err != nil {
 		return 0, err
 	}
 
-	// Construir nome da tabela
 	table, err := BuildTableName(projectCode, req.Table)
 	if err != nil {
 		return 0, err
 	}
 
-	// ✅ Coletar todas as colunas únicas
+	// Coletar todas as colunas únicas
 	colsMap := make(map[string]bool)
 	for _, row := range req.Data {
 		for k := range row {
@@ -110,7 +104,7 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 	}
 	colsMap["id_instancia"] = true
 
-	// ✅ Converter para slice e ORDENAR
+	// Converter para slice e ordenar
 	var cols []string
 	for col := range colsMap {
 		if !query.IsValidColumnName(col) {
@@ -118,25 +112,23 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 		}
 		cols = append(cols, col)
 	}
-	sort.Strings(cols) // ✅ CRÍTICO: ordem fixa
+	sort.Strings(cols)
 
-	// ✅ Construir query com placeholders corretos
+	// ✅ CORREÇÃO AQUI: MySQL usa ? ao invés de $1, $2, $3
 	var valuePlaceholders []string
 	var allValues []interface{}
-	
-	placeholderCount := 0
+
 	for _, row := range req.Data {
 		row["id_instancia"] = req.InstanceID
-		
-		// Gerar placeholders para esta linha
+
+		// Gerar placeholders MySQL: (?, ?, ?)
 		var rowPlaceholders []string
-		for i := 0; i < len(cols); i++ {
-			placeholderCount++
-			rowPlaceholders = append(rowPlaceholders, fmt.Sprintf("$%d", placeholderCount))
+		for range cols {
+			rowPlaceholders = append(rowPlaceholders, "?") // ✅ MySQL
 		}
 		valuePlaceholders = append(valuePlaceholders, "("+strings.Join(rowPlaceholders, ",")+")")
-		
-		// Adicionar valores NA ORDEM das colunas
+
+		// Adicionar valores na ordem das colunas
 		for _, col := range cols {
 			allValues = append(allValues, row[col])
 		}
@@ -149,10 +141,9 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 		strings.Join(valuePlaceholders, ","),
 	)
 
-	// DEBUG (remover em produção)
-	fmt.Printf("SQL: %s\nArgs: %v\n", queryStr, allValues)
+	fmt.Printf("📝 BATCH SQL: %s\n", queryStr)
+	fmt.Printf("📊 BATCH Args: %v\n", allValues)
 
-	// Executar batch insert
 	_, err = config.MasterDB.Exec(queryStr, allValues...)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", models.ErrInsertFailed, err)
