@@ -55,21 +55,6 @@ func (b *InsertBuilder) Build() (string, []interface{}) {
 	return query, allValues
 }
 
-// ============================================================================
-// VALIDAÇÃO
-// ============================================================================
 
-func IsValidColumnName(col string) bool {
-	if col == "" || len(col) > 64 {
-		return false
-	}
-	for _, c := range col {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || 
-		     (c >= '0' && c <= '9') || c == '_') {
-			return false
-		}
-	}
-	return true
-}
 
 
