@@ -2,248 +2,136 @@ package services
 
 import (
 	"fmt"
-	"sort"
-	"strings"
+	"log"
 	"meu-provedor/config"
 	"meu-provedor/engine/query"
 	"meu-provedor/models"
 )
 
-// ExecuteInsert executa um INSERT único
+// ExecuteInsert executa INSERT único com validação completa
 func ExecuteInsert(req models.InsertRequest) (int64, error) {
-	// Validar requisição
-	if req.ProjectID <= 0 {
-		return 0, models.ErrInvalidProjectID
+	// ✅ PASSO 1: Validar requisição
+	if err := req.Validate(); err != nil {
+		return 0, fmt.Errorf("validação falhou: %w", err)
 	}
-	if req.InstanceID <= 0 {
-		return 0, models.ErrInvalidInstanceID
-	}
-	if req.Table == "" {
-		return 0, models.ErrTableRequired
-	}
-	if len(req.Data) == 0 {
-		return 0, models.ErrNoDataProvided
-	}
-
-	// Obter código do projeto
-	projectCode, err := GetProjectCodeByID(req.ProjectID)
+	
+	// ✅ PASSO 2: Buscar código do projeto
+	projectCode, err := config.GetProjectCodeByID(req.ProjectID)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("projeto não encontrado: %w", err)
 	}
-
-	// ✅ Manter a construção do nome da tabela como estava
-	// Exemplo: "salao_beleza" + "_" + "profissionais" = "salao_beleza_profissionais"
-	table := fmt.Sprintf("%s_%s", projectCode, req.Table)
-
-	// Adicionar id_instancia aos dados
-	req.Data["id_instancia"] = req.InstanceID
-
-	// Extrair colunas em ordem fixa (alfabética)
-	var cols []string
-	for col := range req.Data {
-		if !query.IsValidColumnName(col) {
-			return 0, fmt.Errorf("%w: %s", models.ErrInvalidColumn, col)
-		}
-		cols = append(cols, col)
-	}
-	sort.Strings(cols)
-
-	// Extrair valores na mesma ordem das colunas
-	var vals []interface{}
-	for _, col := range cols {
-		vals = append(vals, req.Data[col])
-	}
-
-	// Criar InsertBuilder
-	builder := query.NewInsert(table, cols)
-	builder.AddRow(vals)
-
-	// Executar INSERT
-	sqlQuery, args := builder.Build()
 	
-	fmt.Printf("📝 SQL: %s\n", sqlQuery)
-	fmt.Printf("📊 Args: %v\n", args)
+	// ✅ PASSO 3: Construir nome da tabela
+	tableName := fmt.Sprintf("%s_%s", projectCode, req.Table)
 	
+	// ✅ PASSO 4: Preparar colunas e valores
+	columns := make([]string, 0, len(req.Columns)+1)
+	values := make([]interface{}, 0, len(req.Columns)+1)
+	
+	// Adicionar id_instancia primeiro
+	columns = append(columns, "id_instancia")
+	values = append(values, req.InstanceID)
+	
+	// Adicionar colunas do request
+	for _, col := range req.Columns {
+		columns = append(columns, col.Name)
+		values = append(values, col.Value)
+	}
+	
+	// ✅ PASSO 5: Construir query
+	builder := query.NewInsert(tableName).SetColumns(columns)
+	if err := builder.AddRow(values); err != nil {
+		return 0, fmt.Errorf("erro ao adicionar row: %w", err)
+	}
+	
+	sqlQuery, args, err := builder.Build()
+	if err != nil {
+		return 0, fmt.Errorf("erro ao construir SQL: %w", err)
+	}
+	
+	// ✅ PASSO 6: Log para debug
+	log.Printf("📝 SQL: %s", sqlQuery)
+	log.Printf("📊 Args: %v", args)
+	
+	// ✅ PASSO 7: Executar
 	result, err := config.MasterDB.Exec(sqlQuery, args...)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s", models.ErrInsertFailed, err.Error())
+		return 0, fmt.Errorf("erro ao executar INSERT: %w", err)
 	}
-
+	
 	lastID, err := result.LastInsertId()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("erro ao obter ID: %w", err)
 	}
-
+	
+	log.Printf("✅ Registro inserido com ID: %d", lastID)
 	return lastID, nil
 }
 
-// ExecuteBatchInsert executa múltiplos INSERTs em lote
+// ExecuteBatchInsert executa múltiplos INSERTs em uma única query
 func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
+	// ✅ PASSO 1: Validar requisição
 	if err := req.Validate(); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("validação falhou: %w", err)
 	}
-
-	projectCode, err := GetProjectCodeByID(req.ProjectID)
+	
+	// ✅ PASSO 2: Buscar código do projeto
+	projectCode, err := config.GetProjectCodeByID(req.ProjectID)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("projeto não encontrado: %w", err)
 	}
-
-	// ✅ Manter a construção do nome da tabela como estava
-	table := fmt.Sprintf("%s_%s", projectCode, req.Table)
-
-	// Coletar todas as colunas únicas
-	colsMap := make(map[string]bool)
-	for _, row := range req.Data {
-		for k := range row {
-			colsMap[k] = true
+	
+	// ✅ PASSO 3: Construir nome da tabela
+	tableName := fmt.Sprintf("%s_%s", projectCode, req.Table)
+	
+	// ✅ PASSO 4: Extrair nomes das colunas da primeira row
+	// Assumindo que todas as rows têm as mesmas colunas
+	firstRow := req.Rows[0]
+	columns := make([]string, 0, len(firstRow)+1)
+	
+	// Adicionar id_instancia primeiro
+	columns = append(columns, "id_instancia")
+	
+	// Adicionar colunas da primeira row
+	for _, col := range firstRow {
+		columns = append(columns, col.Name)
+	}
+	
+	// ✅ PASSO 5: Construir query
+	builder := query.NewInsert(tableName).SetColumns(columns)
+	
+	// Adicionar cada row
+	for _, row := range req.Rows {
+		values := make([]interface{}, 0, len(row)+1)
+		
+		// Adicionar id_instancia
+		values = append(values, req.InstanceID)
+		
+		// Adicionar valores da row
+		for _, col := range row {
+			values = append(values, col.Value)
+		}
+		
+		if err := builder.AddRow(values); err != nil {
+			return 0, fmt.Errorf("erro ao adicionar row: %w", err)
 		}
 	}
-	colsMap["id_instancia"] = true
-
-	// Converter para slice e ordenar
-	var cols []string
-	for col := range colsMap {
-		if !query.IsValidColumnName(col) {
-			return 0, fmt.Errorf("%w: %s", models.ErrInvalidColumn, col)
-		}
-		cols = append(cols, col)
-	}
-	sort.Strings(cols)
-
-	// ✅ ÚNICA MUDANÇA: MySQL usa ? ao invés de $1, $2, $3
-	var valuePlaceholders []string
-	var allValues []interface{}
-
-	for _, row := range req.Data {
-		row["id_instancia"] = req.InstanceID
-
-		// Gerar placeholders MySQL: (?, ?, ?)
-		var rowPlaceholders []string
-		for range cols {
-			rowPlaceholders = append(rowPlaceholders, "?") // ✅ MySQL
-		}
-		valuePlaceholders = append(valuePlaceholders, "("+strings.Join(rowPlaceholders, ",")+")")
-
-		// Adicionar valores na ordem das colunas
-		for _, col := range cols {
-			allValues = append(allValues, row[col])
-		}
-	}
-
-	queryStr := fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES %s",
-		table,
-		strings.Join(cols, ","),
-		strings.Join(valuePlaceholders, ","),
-	)
-
-	fmt.Printf("📝 BATCH SQL: %s\n", queryStr)
-	fmt.Printf("📊 BATCH Args: %v\n", allValues)
-
-	_, err = config.MasterDB.Exec(queryStr, allValues...)
+	
+	sqlQuery, args, err := builder.Build()
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", models.ErrInsertFailed, err)
+		return 0, fmt.Errorf("erro ao construir SQL: %w", err)
 	}
-
-	return len(req.Data), nil
+	
+	// ✅ PASSO 6: Log para debug
+	log.Printf("📝 BATCH SQL: %s", sqlQuery)
+	log.Printf("📊 BATCH Args: %v", args)
+	
+	// ✅ PASSO 7: Executar
+	_, err = config.MasterDB.Exec(sqlQuery, args...)
+	if err != nil {
+		return 0, fmt.Errorf("erro ao executar BATCH INSERT: %w", err)
+	}
+	
+	log.Printf("✅ %d registros inseridos", len(req.Rows))
+	return len(req.Rows), nil
 }
-//  depurar codigo
-type SQLDebugResult struct {
-    Ok     bool          `json:"ok"`
-    Stage  string        `json:"stage"`
-    SQL    string        `json:"sql,omitempty"`
-    Args   []interface{} `json:"args,omitempty"`
-    Error  string        `json:"error,omitempty"`
-    Debug  interface{}   `json:"debug,omitempty"`
-}
-
-func ExecuteInsertDebug(req models.InsertRequest) *SQLDebugResult {
-
-    // STAGE 1 — validação básica
-    if req.ProjectID <= 0 {
-        return &SQLDebugResult{
-            Ok:    false,
-            Stage: "validate_project_id",
-            Error: "project_id inválido",
-            Debug: req.ProjectID,
-        }
-    }
-
-    if req.InstanceID <= 0 {
-        return &SQLDebugResult{
-            Ok:    false,
-            Stage: "validate_instance_id",
-            Error: "id_instancia inválido",
-            Debug: req.InstanceID,
-        }
-    }
-
-    if req.Table == "" {
-        return &SQLDebugResult{
-            Ok:    false,
-            Stage: "validate_table",
-            Error: "table é obrigatória",
-        }
-    }
-
-    if len(req.Data) == 0 {
-        return &SQLDebugResult{
-            Ok:    false,
-            Stage: "validate_data",
-            Error: "data está vazia",
-        }
-    }
-
-    // STAGE 2 — buscar projeto
-    projectCode, err := GetProjectCodeByID(req.ProjectID)
-    if err != nil {
-        return &SQLDebugResult{
-            Ok:    false,
-            Stage: "get_project_code",
-            Error: err.Error(),
-            Debug: req.ProjectID,
-        }
-    }
-
-    // STAGE 3 — montar tabela
-    table := fmt.Sprintf("%s_%s", projectCode, req.Table)
-    req.Data["id_instancia"] = req.InstanceID
-
-    // STAGE 4 — validar colunas
-    var cols []string
-    for col := range req.Data {
-        if !query.IsValidColumnName(col) {
-            return &SQLDebugResult{
-                Ok:    false,
-                Stage: "validate_column",
-                Error: "coluna inválida",
-                Debug: col,
-            }
-        }
-        cols = append(cols, col)
-    }
-    sort.Strings(cols)
-
-    // STAGE 5 — extrair valores
-    var vals []interface{}
-    for _, col := range cols {
-        vals = append(vals, req.Data[col])
-    }
-
-    // STAGE 6 — build SQL
-    builder := query.NewInsert(table, cols)
-    builder.AddRow(vals)
-
-    sqlQuery, args := builder.Build()
-
-    // STAGE FINAL — sucesso
-    return &SQLDebugResult{
-        Ok:    true,
-        Stage: "build_sql",
-        SQL:   sqlQuery,
-        Args:  args,
-    }
-}
-
-
-
