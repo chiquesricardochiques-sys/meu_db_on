@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 	"meu-provedor/models"
-	"meu-provedor/services"
+	"meu-provedor/services/data_service"
 )
 
 // InsertHandler processa INSERT único
@@ -61,3 +61,4 @@ func BatchInsertHandler(w http.ResponseWriter, r *http.Request) {
 		"count":   count,
 	})
 }
+
