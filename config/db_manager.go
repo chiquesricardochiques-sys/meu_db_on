@@ -87,7 +87,7 @@ func CloseDB() error {
 // ============================================================================
 
 // GetProjectByID retorna projeto pelo ID
-func GetProjectByID(projectID int) (*Project, error) {
+func GetProjectByID(projectID int64) (*Project, error) {
 	var project Project
 	query := "SELECT id, name, code, api_key FROM projects WHERE id = ? LIMIT 1"
 	row := MasterDB.QueryRow(query, projectID)
@@ -110,7 +110,7 @@ func GetProjectByApiKey(apiKey string) (*Project, error) {
 }
 
 // GetProjectCodeByID retorna o code de um projeto dado seu ID
-func GetProjectCodeByID(projectID int) (string, error) {
+func GetProjectCodeByID(projectID int64) (string, error) {
 	var code string
 	query := "SELECT code FROM projects WHERE id = ? LIMIT 1"
 	row := MasterDB.QueryRow(query, projectID)
@@ -164,8 +164,9 @@ func RowsToMap(rows *sql.Rows) ([]map[string]interface{}, error) {
 // ============================================================================
 
 type Project struct {
-	ID     int
+	ID     int64
 	Name   string
 	Code   string
 	ApiKey string
 }
+
