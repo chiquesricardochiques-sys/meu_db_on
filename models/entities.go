@@ -6,19 +6,6 @@ import "time"
 // ENTITY MODELS - Estruturas de entidades do domínio
 // ============================================================================
 
-// Project - Representa um projeto no sistema
-type Project struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Code        string    `json:"code"`         // Prefixo único para tabelas
-	Description string    `json:"description"`
-	ApiKey      string    `json:"api_key"`
-	Type        string    `json:"type"`
-	Version     string    `json:"version"`
-	Status      string    `json:"status"`       // active, inactive, blocked
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
 
 // Instance - Representa uma instância de um projeto
 // Modelo de retorno
@@ -38,3 +25,4 @@ type Instance struct {
 	CreatedAt   time.Time              `json:"created_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
 }
+
