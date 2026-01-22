@@ -16,7 +16,7 @@ func ExecuteInsert(req models.InsertRequest) (int64, error) {
 	}
 	
 	// ✅ PASSO 2: Buscar código do projeto
-	projectCode, err := config.GetProjectCodeByID(req.ProjectID)
+	projectCode, err := config.GetProjectCodeByID(int(req.ProjectID))
 	if err != nil {
 		return 0, fmt.Errorf("projeto não encontrado: %w", err)
 	}
@@ -76,7 +76,7 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 	}
 	
 	// ✅ PASSO 2: Buscar código do projeto
-	projectCode, err := config.GetProjectCodeByID(req.ProjectID)
+	projectCode, err := config.GetProjectCodeByID(int(req.ProjectID))
 	if err != nil {
 		return 0, fmt.Errorf("projeto não encontrado: %w", err)
 	}
@@ -135,3 +135,4 @@ func ExecuteBatchInsert(req models.BatchInsertRequest) (int, error) {
 	log.Printf("✅ %d registros inseridos", len(req.Rows))
 	return len(req.Rows), nil
 }
+
