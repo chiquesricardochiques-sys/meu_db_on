@@ -13,13 +13,13 @@ type IndexRequest struct {
 	Type    string   `json:"type"` // UNIQUE ou INDEX
 }
 
+// CreateTableRequest - Agora usa project_id ao invés de project_code
 type CreateTableRequest struct {
 	ProjectID int64           `json:"project_id"`
 	TableName string          `json:"table_name"`
 	Columns   []ColumnRequest `json:"columns"`
 	Indexes   []IndexRequest  `json:"indexes,omitempty"`
 }
-
 
 type ColumnDetail struct {
 	Name     string      `json:"name"`
