@@ -3,10 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-
+	"strconv"
 	"meu-provedor/models"
-	
-
 	tableService "meu-provedor/services/table"
 )
 
@@ -17,8 +15,12 @@ func CreateProjectTable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectCode := r.URL.Query().Get("project_code")
-	tableName, err := tableService.Create(projectCode, req)
+	if req.ProjectID <= 0 {
+		http.Error(w, "project_id is required", 400)
+		return
+	}
+
+	tableName, err := tableService.Create(req.ProjectID, req)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
@@ -32,8 +34,19 @@ func CreateProjectTable(w http.ResponseWriter, r *http.Request) {
 }
 
 func ListProjectTables(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
-	tables, err := tableService.List(projectCode)
+	projectIDStr := r.URL.Query().Get("project_id")
+	if projectIDStr == "" {
+		http.Error(w, "project_id is required", 400)
+		return
+	}
+
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
+
+	tables, err := tableService.List(projectID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -43,10 +56,21 @@ func ListProjectTables(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteProjectTable(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
+	projectIDStr := r.URL.Query().Get("project_id")
 	tableName := r.URL.Query().Get("table")
 
-	if err := tableService.Delete(projectCode, tableName); err != nil {
+	if projectIDStr == "" || tableName == "" {
+		http.Error(w, "project_id and table are required", 400)
+		return
+	}
+
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
+
+	if err := tableService.Delete(projectID, tableName); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
@@ -54,19 +78,23 @@ func DeleteProjectTable(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("TABLE DELETED"))
 }
 
-
-
-
 // GET TABLE DETAILS
 func GetTableDetails(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
+	projectIDStr := r.URL.Query().Get("project_id")
 	tableName := r.URL.Query().Get("table")
-	if projectCode == "" || tableName == "" {
-		http.Error(w, "project_code and table are required", 400)
+
+	if projectIDStr == "" || tableName == "" {
+		http.Error(w, "project_id and table are required", 400)
 		return
 	}
 
-	details, err := tableService.GetDetails(projectCode, tableName)
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
+
+	details, err := tableService.GetDetails(projectID, tableName)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -77,8 +105,19 @@ func GetTableDetails(w http.ResponseWriter, r *http.Request) {
 
 // ADD COLUMN
 func AddColumn(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
+	projectIDStr := r.URL.Query().Get("project_id")
 	tableName := r.URL.Query().Get("table")
+
+	if projectIDStr == "" || tableName == "" {
+		http.Error(w, "project_id and table are required", 400)
+		return
+	}
+
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
 
 	var col tableService.ColumnRequest
 	if err := json.NewDecoder(r.Body).Decode(&col); err != nil {
@@ -86,7 +125,7 @@ func AddColumn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := tableService.AddColumn(projectCode, tableName, col); err != nil {
+	if err := tableService.AddColumn(projectID, tableName, col); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
@@ -96,8 +135,19 @@ func AddColumn(w http.ResponseWriter, r *http.Request) {
 
 // MODIFY COLUMN
 func ModifyColumn(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
+	projectIDStr := r.URL.Query().Get("project_id")
 	tableName := r.URL.Query().Get("table")
+
+	if projectIDStr == "" || tableName == "" {
+		http.Error(w, "project_id and table are required", 400)
+		return
+	}
+
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
 
 	var col tableService.ColumnRequest
 	if err := json.NewDecoder(r.Body).Decode(&col); err != nil {
@@ -105,7 +155,7 @@ func ModifyColumn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := tableService.ModifyColumn(projectCode, tableName, col); err != nil {
+	if err := tableService.ModifyColumn(projectID, tableName, col); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
@@ -115,11 +165,22 @@ func ModifyColumn(w http.ResponseWriter, r *http.Request) {
 
 // DROP COLUMN
 func DropColumn(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
+	projectIDStr := r.URL.Query().Get("project_id")
 	tableName := r.URL.Query().Get("table")
 	columnName := r.URL.Query().Get("column")
 
-	if err := tableService.DropColumn(projectCode, tableName, columnName); err != nil {
+	if projectIDStr == "" || tableName == "" || columnName == "" {
+		http.Error(w, "project_id, table and column are required", 400)
+		return
+	}
+
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
+
+	if err := tableService.DropColumn(projectID, tableName, columnName); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
@@ -129,8 +190,19 @@ func DropColumn(w http.ResponseWriter, r *http.Request) {
 
 // ADD INDEX
 func AddIndex(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
+	projectIDStr := r.URL.Query().Get("project_id")
 	tableName := r.URL.Query().Get("table")
+
+	if projectIDStr == "" || tableName == "" {
+		http.Error(w, "project_id and table are required", 400)
+		return
+	}
+
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
 
 	var idx tableService.IndexRequest
 	if err := json.NewDecoder(r.Body).Decode(&idx); err != nil {
@@ -138,7 +210,7 @@ func AddIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := tableService.AddIndex(projectCode, tableName, idx); err != nil {
+	if err := tableService.AddIndex(projectID, tableName, idx); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
@@ -148,16 +220,25 @@ func AddIndex(w http.ResponseWriter, r *http.Request) {
 
 // DROP INDEX
 func DropIndex(w http.ResponseWriter, r *http.Request) {
-	projectCode := r.URL.Query().Get("project_code")
+	projectIDStr := r.URL.Query().Get("project_id")
 	tableName := r.URL.Query().Get("table")
 	indexName := r.URL.Query().Get("index")
 
-	if err := tableService.DropIndex(projectCode, tableName, indexName); err != nil {
+	if projectIDStr == "" || tableName == "" || indexName == "" {
+		http.Error(w, "project_id, table and index are required", 400)
+		return
+	}
+
+	projectID, err := strconv.ParseInt(projectIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid project_id", 400)
+		return
+	}
+
+	if err := tableService.DropIndex(projectID, tableName, indexName); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
 
 	w.Write([]byte("INDEX DROPPED"))
 }
-
-
