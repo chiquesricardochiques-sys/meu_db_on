@@ -50,7 +50,7 @@ func BatchInsertHandler(w http.ResponseWriter, r *http.Request) {
 	count, err := services.ExecuteBatchInsert(req)
 	if err != nil {
 		log.Printf("❌ Erro ao executar BATCH INSERT: %v", err)
-		RespondError(w, err.Error(), http.StatusInternalServerRequest)
+		RespondError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	
@@ -61,4 +61,5 @@ func BatchInsertHandler(w http.ResponseWriter, r *http.Request) {
 		"count":   count,
 	})
 }
+
 
