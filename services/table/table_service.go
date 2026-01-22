@@ -12,8 +12,14 @@ import (
 // TABLE OPERATIONS
 // ============================================================================
 
-// Create cria uma nova tabela para o projeto
-func Create(projectCode string, req models.CreateTableRequest) (string, error) {
+// Create cria uma nova tabela para o projeto (usando project_id)
+func Create(projectID int64, req models.CreateTableRequest) (string, error) {
+	// Busca o code do projeto pelo ID
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return "", fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTableName := fmt.Sprintf("%s_%s", projectCode, req.TableName)
 
 	columns := []string{
@@ -47,12 +53,17 @@ func Create(projectCode string, req models.CreateTableRequest) (string, error) {
 
 	createSQL := fmt.Sprintf("CREATE TABLE %s (%s)", fullTableName, strings.Join(columns, ","))
 
-	_, err := config.MasterDB.Exec(createSQL)
+	_, err = config.MasterDB.Exec(createSQL)
 	return fullTableName, err
 }
 
-// List retorna todas as tabelas de um projeto
-func List(projectCode string) ([]string, error) {
+// List retorna todas as tabelas de um projeto (usando project_id)
+func List(projectID int64) ([]string, error) {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return nil, fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	rows, err := config.MasterDB.Query(`
 		SELECT table_name
 		FROM information_schema.tables
@@ -74,15 +85,25 @@ func List(projectCode string) ([]string, error) {
 	return tables, nil
 }
 
-// Delete remove uma tabela
-func Delete(projectCode, table string) error {
+// Delete remove uma tabela (usando project_id)
+func Delete(projectID int64, table string) error {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTable := fmt.Sprintf("%s_%s", projectCode, table)
-	_, err := config.MasterDB.Exec("DROP TABLE " + fullTable)
+	_, err = config.MasterDB.Exec("DROP TABLE " + fullTable)
 	return err
 }
 
-// GetDetails retorna detalhes completos de uma tabela
-func GetDetails(projectCode, tableName string) (*models.TableDetail, error) {
+// GetDetails retorna detalhes completos de uma tabela (usando project_id)
+func GetDetails(projectID int64, tableName string) (*models.TableDetail, error) {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return nil, fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
 
 	columns, err := getColumns(fullTable)
@@ -113,8 +134,13 @@ type ColumnRequest struct {
 	Unique   bool   `json:"unique"`
 }
 
-// AddColumn adiciona uma nova coluna à tabela
-func AddColumn(projectCode, tableName string, col ColumnRequest) error {
+// AddColumn adiciona uma nova coluna à tabela (usando project_id)
+func AddColumn(projectID int64, tableName string, col ColumnRequest) error {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
 	def := col.Name + " " + col.Type
 	if !col.Nullable {
@@ -124,27 +150,37 @@ func AddColumn(projectCode, tableName string, col ColumnRequest) error {
 		def += " UNIQUE"
 	}
 	query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s", fullTable, def)
-	_, err := config.MasterDB.Exec(query)
+	_, err = config.MasterDB.Exec(query)
 	return err
 }
 
-// ModifyColumn modifica uma coluna existente
-func ModifyColumn(projectCode, tableName string, col ColumnRequest) error {
+// ModifyColumn modifica uma coluna existente (usando project_id)
+func ModifyColumn(projectID int64, tableName string, col ColumnRequest) error {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
 	def := col.Name + " " + col.Type
 	if !col.Nullable {
 		def += " NOT NULL"
 	}
 	query := fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s", fullTable, def)
-	_, err := config.MasterDB.Exec(query)
+	_, err = config.MasterDB.Exec(query)
 	return err
 }
 
-// DropColumn remove uma coluna
-func DropColumn(projectCode, tableName, columnName string) error {
+// DropColumn remove uma coluna (usando project_id)
+func DropColumn(projectID int64, tableName, columnName string) error {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
 	query := fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", fullTable, columnName)
-	_, err := config.MasterDB.Exec(query)
+	_, err = config.MasterDB.Exec(query)
 	return err
 }
 
@@ -158,8 +194,13 @@ type IndexRequest struct {
 	Type    string   `json:"type"`
 }
 
-// AddIndex adiciona um novo índice
-func AddIndex(projectCode, tableName string, idx IndexRequest) error {
+// AddIndex adiciona um novo índice (usando project_id)
+func AddIndex(projectID int64, tableName string, idx IndexRequest) error {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
 	var query string
 	if idx.Type == "UNIQUE" {
@@ -169,15 +210,20 @@ func AddIndex(projectCode, tableName string, idx IndexRequest) error {
 		query = fmt.Sprintf("ALTER TABLE %s ADD INDEX %s (%s)",
 			fullTable, idx.Name, strings.Join(idx.Columns, ","))
 	}
-	_, err := config.MasterDB.Exec(query)
+	_, err = config.MasterDB.Exec(query)
 	return err
 }
 
-// DropIndex remove um índice
-func DropIndex(projectCode, tableName, indexName string) error {
+// DropIndex remove um índice (usando project_id)
+func DropIndex(projectID int64, tableName, indexName string) error {
+	projectCode, err := config.GetProjectCodeByID(int(projectID))
+	if err != nil {
+		return fmt.Errorf("projeto não encontrado: %w", err)
+	}
+
 	fullTable := fmt.Sprintf("%s_%s", projectCode, tableName)
 	query := fmt.Sprintf("ALTER TABLE %s DROP INDEX %s", fullTable, indexName)
-	_, err := config.MasterDB.Exec(query)
+	_, err = config.MasterDB.Exec(query)
 	return err
 }
 
@@ -201,7 +247,7 @@ func getColumns(fullTable string) ([]models.ColumnDetail, error) {
 	for rows.Next() {
 		var col models.ColumnDetail
 		var isNullable, colDefault, colKey, extra sql.NullString
-		
+
 		err := rows.Scan(&col.Name, &col.Type, &isNullable, &colDefault, &colKey, &extra)
 		if err != nil {
 			continue
@@ -235,7 +281,7 @@ func getIndexes(fullTable string) ([]models.IndexDetail, error) {
 	for rows.Next() {
 		var name, column string
 		var nonUnique int
-		
+
 		err := rows.Scan(&name, &column, &nonUnique)
 		if err != nil {
 			continue
@@ -261,4 +307,3 @@ func getIndexes(fullTable string) ([]models.IndexDetail, error) {
 	}
 	return indexes, nil
 }
-
