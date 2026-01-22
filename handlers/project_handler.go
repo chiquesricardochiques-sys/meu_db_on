@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-
 	"github.com/gorilla/mux"
-
 	projectService "meu-provedor/services/project"
 	"meu-provedor/models"
 )
@@ -35,15 +33,17 @@ func ListProjects(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-
 	json.NewEncoder(w).Encode(projects)
 }
 
 func UpdateProject(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(mux.Vars(r)["id"], 10, 64)
 
-	var req models.ProjectRequest
-	json.NewDecoder(r.Body).Decode(&req)
+	var req models.ProjectUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", 400)
+		return
+	}
 
 	if err := projectService.Update(id, req); err != nil {
 		http.Error(w, err.Error(), 400)
