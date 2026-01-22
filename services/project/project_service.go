@@ -2,12 +2,17 @@ package project
 
 import (
 	"database/sql"
+	"errors"
 	"meu-provedor/config"
 	"meu-provedor/models"
 )
 
 // Create insere um novo projeto
 func Create(req models.ProjectRequest) error {
+	if req.Code == "" {
+		return errors.New("code is required")
+	}
+
 	exists, err := CodeExists(req.Code)
 	if err != nil {
 		return err
@@ -61,14 +66,14 @@ func List() ([]models.Project, error) {
 	return projects, nil
 }
 
-// Update atualiza um projeto existente
-func Update(id int64, req models.ProjectRequest) error {
+// Update atualiza um projeto existente (SEM alterar o code)
+func Update(id int64, req models.ProjectUpdateRequest) error {
 	_, err := config.MasterDB.Exec(`
 		UPDATE projects
-		SET name=?, code=?, type=?, version=?, status=?
+		SET name=?, api_key=?, type=?, version=?, status=?
 		WHERE id=?`,
 		req.Name,
-		req.Code,
+		req.ApiKey,
 		req.Type,
 		req.Version,
 		req.Status,
@@ -90,7 +95,7 @@ func CodeExists(code string) (bool, error) {
 		`SELECT 1 FROM projects WHERE code=? LIMIT 1`,
 		code,
 	).Scan(&exists)
-	
+
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
